@@ -102,8 +102,10 @@ export async function loadAll() {
     admin ? supabase.from('team').select('*') : Promise.resolve({ data: [], error: null }),
     supabase.from('agent_drive').select('*')
   ]);
-  for (const r of [ag, br, md, st, ap, tm, dr]) if (r.error) throw r.error;
-  store.drives = Object.fromEntries(((dr.data ?? []) as AgentDrive[]).map(d => [d.agent_id, d]));
+  for (const r of [ag, br, md, st, ap, tm]) if (r.error) throw r.error;
+  // Uploads are optional: if the database hasn't been updated for them yet, the portal still works.
+  if (dr.error) console.warn('Requirements upload settings unavailable:', dr.error.message);
+  store.drives = Object.fromEntries(((dr.error ? [] : dr.data ?? []) as AgentDrive[]).map(d => [d.agent_id, d]));
   store.brands = (br.data ?? []) as Brand[];
   store.models = (md.data ?? []) as UnitModel[];
   const agents = (ag.data ?? []) as Agent[];
