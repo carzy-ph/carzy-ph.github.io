@@ -6,6 +6,7 @@ import { CONFIG } from '@/config';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/lib/toast';
 import { googleButtonAvailable, renderGoogleButton } from '@/lib/googleButton';
+import { isDark } from '@/lib/theme';
 import { boot, store } from '../store';
 
 const state = ref<'checking' | 'ready' | 'off'>('checking');
@@ -19,6 +20,7 @@ async function showGisButton() {
   if (!useGisButton || !gisSlot.value) return;
   try {
     await renderGoogleButton(gisSlot.value, {
+      dark: isDark.value,
       onSignedIn: () => { store.authError = ''; boot(); },
       onError: msg => (store.authError = msg)
     });
@@ -26,7 +28,8 @@ async function showGisButton() {
     store.authError = (e as Error).message;
   }
 }
-watch(state, () => { if (state.value === 'ready') nextTick(showGisButton); });
+// Re-render when the light/dark switch changes, so the button always matches the page.
+watch([state, isDark], () => { if (state.value === 'ready') nextTick(showGisButton); });
 
 // Google must be switched on in Supabase (Authentication → Sign In / Providers).
 onMounted(async () => {

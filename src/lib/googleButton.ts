@@ -34,7 +34,7 @@ export const googleButtonAvailable = () => Boolean(CONFIG.googleClientId);
  */
 export async function renderGoogleButton(
   el: HTMLElement,
-  opts: { onSignedIn: () => void; onError: (msg: string) => void }
+  opts: { dark: boolean; onSignedIn: () => void; onError: (msg: string) => void }
 ) {
   await loadScript();
   // A fresh nonce per render: Google signs the hashed one into the token, Supabase checks the raw one.
@@ -56,12 +56,12 @@ export async function renderGoogleButton(
   el.innerHTML = '';
   gid.renderButton(el, {
     type: 'standard',
-    // Google's white button in both themes: its dark style puts the G on a white square, which looks
-    // patchy on a dark page, and Google doesn't allow restyling the button's parts.
-    theme: 'outline',
+    // Google's black button in dark mode, white in light mode. Google's brand rules keep the G on a white
+    // tile in every style; the pill shape makes that a neat circle instead of a square.
+    theme: opts.dark ? 'filled_black' : 'outline',
     size: 'large',
     text: 'continue_with',
-    shape: 'rectangular',
+    shape: 'pill',
     logo_alignment: 'center',
     locale: 'en', // match the rest of the site instead of the browser's language
     width: Math.min(400, Math.max(200, Math.round(el.clientWidth || 320)))
