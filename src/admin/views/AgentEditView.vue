@@ -328,9 +328,9 @@ onBeforeRouteLeave(async () => {
         <section v-if="admin" class="block">
           <div class="block-h"><h2>Portal login</h2></div>
           <div class="field">
-            <label for="f-login">Portal login email</label>
-            <input id="f-login" v-model="loginEmail" class="inp" type="email" placeholder="agent@email.com" autocomplete="off">
-            <span class="hint">The agent signs in at <b>{{ agentPortalUrl }}</b> with this email (Google or email code) to see their applications and edit their card. Leave blank for no portal access.</span>
+            <label for="f-login">Portal login email (Google account)</label>
+            <input id="f-login" v-model="loginEmail" class="inp" type="email" placeholder="agent@gmail.com" autocomplete="off">
+            <span class="hint">The agent signs in at <b>{{ agentPortalUrl }}</b> with this Google account to see their applications and edit their card. It must be a Gmail or Google Workspace address. Leave blank for no portal access.</span>
           </div>
         </section>
 

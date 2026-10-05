@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// Sign in with Google (main option) or an emailed code (for agents without a Google account).
-// Either way, access is decided by the team list: the email must be an admin, or an agent's Portal login email.
+// Sign in with Google. Access is decided by the team list: the Google account's email must be
+// an admin, or an agent's Portal login email.
 import { nextTick, onMounted, ref, watch } from 'vue';
 import { CONFIG } from '@/config';
 import { supabase } from '@/lib/supabase';
@@ -9,15 +9,10 @@ import { isDark } from '@/lib/theme';
 import { googleButtonAvailable, renderGoogleButton } from '@/lib/googleButton';
 import { boot, store } from '../store';
 
-const step = ref<'checking' | 'choose' | 'email' | 'code'>('checking');
-const email = ref('');
-const code = ref('');
-const busy = ref(false);
+const state = ref<'checking' | 'ready' | 'off'>('checking');
 const googleBusy = ref(false);
-const googleAvailable = ref(false);
-const codeInput = ref<HTMLInputElement>();
-const emailInput = ref<HTMLInputElement>();
 // Google's own button (when a client ID is configured) names this site on Google's screen.
+// Without a client ID, a plain button sends people to Google through Supabase instead.
 const useGisButton = googleButtonAvailable();
 const gisSlot = ref<HTMLElement>();
 
@@ -33,17 +28,16 @@ async function showGisButton() {
     store.authError = (e as Error).message;
   }
 }
-watch([step, isDark], () => { if (step.value === 'choose') nextTick(showGisButton); });
+watch([state, isDark], () => { if (state.value === 'ready') nextTick(showGisButton); });
 
-// Only offer Google once it's switched on in Supabase (Authentication → Sign In / Providers).
+// Google must be switched on in Supabase (Authentication → Sign In / Providers).
 onMounted(async () => {
   let googleOn = false;
   try {
     const res = await fetch(`${CONFIG.supabaseUrl.replace(/\/$/, '')}/auth/v1/settings`, { headers: { apikey: CONFIG.supabaseKey } });
     googleOn = res.ok && Boolean((await res.json())?.external?.google);
-  } catch { /* offline: fall back to email */ }
-  googleAvailable.value = googleOn;
-  if (step.value === 'checking') googleOn ? (step.value = 'choose') : useEmail();
+  } catch { /* offline */ }
+  state.value = googleOn ? 'ready' : 'off';
 });
 
 async function google() {
@@ -60,34 +54,6 @@ async function google() {
     toast(error.message);
   }
 }
-
-function useEmail() {
-  step.value = 'email';
-  nextTick(() => emailInput.value?.focus());
-}
-
-async function sendCode() {
-  busy.value = true;
-  const { error } = await supabase.auth.signInWithOtp({
-    email: email.value.trim().toLowerCase(),
-    options: { emailRedirectTo: location.origin + location.pathname }
-  });
-  busy.value = false;
-  if (error) {
-    toast(/rate/i.test(error.message) ? 'Too many sign-in emails. Wait a few minutes and try again.' : error.message);
-    return;
-  }
-  step.value = 'code';
-  nextTick(() => codeInput.value?.focus());
-}
-
-async function verify() {
-  busy.value = true;
-  const { error } = await supabase.auth.verifyOtp({ email: email.value.trim().toLowerCase(), token: code.value.replace(/\s/g, ''), type: 'email' });
-  busy.value = false;
-  if (error) { toast('That code didn’t work. Use the newest email, or go back and request a new code.'); return; }
-  boot();
-}
 </script>
 
 <template>
@@ -97,9 +63,14 @@ async function verify() {
 
     <p v-if="store.authError" class="auth-error" role="alert">Sign-in didn’t finish: {{ store.authError }}</p>
 
-    <p v-if="step === 'checking'" class="muted">Loading…</p>
+    <p v-if="state === 'checking'" class="muted">Loading…</p>
 
-    <template v-else-if="step === 'choose'">
+    <div v-else-if="state === 'off'" class="notice">
+      <p>Sign-in isn’t available right now. Check your connection and reload the page.</p>
+      <p class="muted">If this keeps happening, Google sign-in may be switched off in Supabase (Authentication → Sign In / Providers → Google).</p>
+    </div>
+
+    <template v-else>
       <p class="muted">{{ store.area === 'admin' ? 'Use your admin Google account.' : 'Use the Google account your admin linked to your agent card.' }}</p>
       <div class="login-form">
         <div v-if="useGisButton" ref="gisSlot" class="gis-slot" aria-label="Sign in with Google"></div>
@@ -112,27 +83,7 @@ async function verify() {
           </svg>
           {{ googleBusy ? 'Opening Google…' : 'Continue with Google' }}
         </button>
-        <div class="or"><span>or</span></div>
-        <button class="btn" type="button" @click="useEmail">Email me a sign-in code</button>
       </div>
-    </template>
-
-    <template v-else-if="step === 'email'">
-      <p class="muted">Enter your work email. We’ll email you a sign-in code.</p>
-      <form class="login-form" @submit.prevent="sendCode">
-        <div class="field"><label for="li-email">Email</label><input id="li-email" ref="emailInput" v-model="email" class="inp" type="email" autocomplete="email" required></div>
-        <button class="btn primary" type="submit" :disabled="busy">{{ busy ? 'Sending…' : 'Email me a code' }}</button>
-        <button v-if="googleAvailable" class="btn" type="button" @click="step = 'choose'">Back to Google sign-in</button>
-      </form>
-    </template>
-
-    <template v-else>
-      <p class="muted">We sent a code to <b>{{ email }}</b>. It can take a minute to arrive. You can also tap the link in that email on this device.</p>
-      <form class="login-form" @submit.prevent="verify">
-        <div class="field"><label for="li-code">Sign-in code</label><input id="li-code" ref="codeInput" v-model="code" class="inp code" inputmode="numeric" autocomplete="one-time-code" maxlength="10" required></div>
-        <button class="btn primary" type="submit" :disabled="busy">{{ busy ? 'Signing in…' : 'Sign in' }}</button>
-        <button class="btn" type="button" @click="step = 'email'; code = ''">Use a different email</button>
-      </form>
     </template>
   </section>
 </template>
@@ -142,7 +93,8 @@ async function verify() {
 .google { background: #fff; color: #1F1F1F; border-color: #DADCE0; gap: 10px; font-weight: 600; }
 .google:hover { background: #F7F8F8; }
 .gis-slot { min-height: 44px; display: flex; justify-content: center; }
-.or { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .1em; }
-.or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+/* Google's button is a light-themed embedded frame. In dark mode the browser would paint it an opaque
+   white box; declaring it light lets it stay transparent so only the button itself shows. */
+.gis-slot :deep(iframe) { color-scheme: light; }
 .auth-error { margin: 0; padding: 10px 12px; border: 1px solid var(--err); border-radius: 10px; color: var(--err); font-size: 14px; }
 </style>

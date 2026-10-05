@@ -15,7 +15,7 @@ function loadScript(): Promise<void> {
   scriptLoad ??= new Promise((resolve, reject) => {
     const s = Object.assign(document.createElement('script'), { src: 'https://accounts.google.com/gsi/client', async: true });
     s.onload = () => resolve();
-    s.onerror = () => { scriptLoad = null; reject(new Error('Couldn’t reach Google. Check your connection, or use an email code.')); };
+    s.onerror = () => { scriptLoad = null; reject(new Error('Couldn’t reach Google. Check your connection and reload the page.')); };
     document.head.appendChild(s);
   });
   return scriptLoad;

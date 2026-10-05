@@ -6,7 +6,7 @@ portal lets admins manage agents and units while agents follow up on their appli
 - **Card page** (`/cards/<slug>/`) opens when a client taps an agent's NFC card. It has contact
   buttons, Save contact, social links, and a 4-step car loan application.
 - **Admin** (`/admin/`) and **Agent Portal** (`/portal/`) are separate addresses with the same
-  sign-in: Google, or an emailed code. Signing in at the wrong one forwards you to the right one.
+  sign-in: Google. Signing in at the wrong one forwards you to the right one.
   - **Admin:** manage agents, assign each agent a brand, manage the units catalog
     (Brand → Model → Variant), see and reassign all applications, export CSV.
   - **Agent:** edit their own card, see only their own applications, update status and notes.
@@ -112,20 +112,14 @@ restart `npm run dev`. The portal is at `http://localhost:5173/admin/`.
    insert into public.team (email, role) values ('you@example.com', 'admin');
    ```
 
-### 2. Set up sign-in emails
-1. Go to **Authentication → URL Configuration**:
-   - **Site URL:** `https://YOUR-USERNAME.github.io/dane/`
-   - **Redirect URLs:** add all four of these:
-     `http://localhost:5173/admin/`, `http://localhost:5173/portal/`,
-     `https://YOUR-USERNAME.github.io/dane/admin/`, `https://YOUR-USERNAME.github.io/dane/portal/`
-2. Go to **Authentication → Emails → Magic Link**. Make sure the template includes `{{ .Token }}`
-   so the email shows a code, for example `Your sign-in code is {{ .Token }}`.
-3. Supabase's built-in email sender only allows a few emails per hour. That's fine for a small
-   team, because people stay signed in. For more agents, add your own SMTP under
-   **Project Settings → Authentication → SMTP**.
+### 2. Set the sign-in addresses
+**Authentication → URL Configuration**:
+- **Site URL:** `https://YOUR-USERNAME.github.io/portal/`
+- **Redirect URLs:** add `http://localhost:5173/admin/`, `http://localhost:5173/portal/`,
+  `https://YOUR-USERNAME.github.io/admin/` and `https://YOUR-USERNAME.github.io/portal/`.
 
-### 2b. Turn on Google sign-in (optional, recommended)
-The portal shows **Continue with Google** once this is set up, and email codes keep working.
+### 2b. Turn on Google sign-in (required)
+The portal signs people in with Google only.
 Either way, access depends on the team list: the Google account's email must be an admin or an
 agent's **Portal login email**.
 
@@ -141,7 +135,10 @@ agent's **Portal login email**.
 4. Copy the **Client ID** and **Client secret**.
 5. In Supabase, go to **Authentication → Sign In / Providers → Google**, turn it on, paste both
    values, and save. Keep the secret only there, never in this repo.
-6. Reload the portal. The Google button appears.
+6. Put the **Client ID** in `.env.local` as `VITE_GOOGLE_CLIENT_ID`, and add it as the
+   `VITE_GOOGLE_CLIENT_ID` repository variable on GitHub. The portal then shows Google's own
+   button, and Google's screen names your site instead of the Supabase address.
+7. Reload the portal. The Google button appears.
 
 ### 3. Get your keys
 In **Project Settings → API Keys**, copy the **Project URL** and the **publishable key**
