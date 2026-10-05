@@ -5,7 +5,6 @@ import { nextTick, onMounted, ref, watch } from 'vue';
 import { CONFIG } from '@/config';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/lib/toast';
-import { isDark } from '@/lib/theme';
 import { googleButtonAvailable, renderGoogleButton } from '@/lib/googleButton';
 import { boot, store } from '../store';
 
@@ -20,7 +19,6 @@ async function showGisButton() {
   if (!useGisButton || !gisSlot.value) return;
   try {
     await renderGoogleButton(gisSlot.value, {
-      dark: isDark.value,
       onSignedIn: () => { store.authError = ''; boot(); },
       onError: msg => (store.authError = msg)
     });
@@ -28,7 +26,7 @@ async function showGisButton() {
     store.authError = (e as Error).message;
   }
 }
-watch([state, isDark], () => { if (state.value === 'ready') nextTick(showGisButton); });
+watch(state, () => { if (state.value === 'ready') nextTick(showGisButton); });
 
 // Google must be switched on in Supabase (Authentication → Sign In / Providers).
 onMounted(async () => {
