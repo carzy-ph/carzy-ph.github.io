@@ -2,7 +2,8 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import type { Application, AppStatus } from '@/types';
 import { SOURCE, STATUS } from '@/lib/constants';
-import { relTime, toIntl } from '@/lib/format';
+import { longDate, relTime, toIntl } from '@/lib/format';
+import { cardUrl } from '@/config';
 import { asText, sections } from '@/lib/applications';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/lib/toast';
@@ -33,6 +34,27 @@ function setStatus(s: AppStatus) {
 }
 function setAgent(id: string) {
   if (id !== props.app.agent_id) update({ agent_id: id }, `Reassigned to ${agentById(id)?.name ?? 'another agent'}.`);
+}
+
+// Requirements: files the client uploaded to the agent's Drive, and the private link to send them.
+const drive = computed(() => store.drives[props.app.agent_id] ?? null);
+const expired = computed(() => !props.app.upload_expires || new Date(props.app.upload_expires) < new Date());
+const uploadLink = computed(() => {
+  const slug = agentById(props.app.agent_id)?.slug;
+  return slug && props.app.upload_token ? `${cardUrl(slug)}?upload=${props.app.ref}&t=${props.app.upload_token}` : '';
+});
+const renewing = ref(false);
+async function renewLink() {
+  renewing.value = true;
+  const { data, error } = await supabase.rpc('renew_upload_link', { p_id: props.app.id });
+  renewing.value = false;
+  if (error) { toast(friendly(error)); return; }
+  Object.assign(store.applications.find(a => a.id === props.app.id)!, data as Pick<Application, 'upload_token' | 'upload_expires'>);
+  toast('New upload link ready. The old one no longer works.');
+}
+async function copyUploadLink() {
+  try { await navigator.clipboard.writeText(uploadLink.value); toast('Upload link copied. Send it to the client by text, Viber or Messenger.'); }
+  catch { toast('Copy didn’t work here. Select the link and copy it manually.'); }
 }
 
 function saveNote() {
@@ -85,6 +107,23 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey));
       <div v-for="s in sections(app)" :key="s.title" class="sect">
         <h3>{{ s.title }}</h3>
         <dl class="kv"><template v-for="[k, v] in s.rows" :key="k"><dt>{{ k }}</dt><dd>{{ v }}</dd></template></dl>
+      </div>
+
+      <div class="sect">
+        <h3>Requirements <span class="count-pill">{{ app.documents?.length ?? 0 }}</span></h3>
+        <ul v-if="app.documents?.length" class="doc-links">
+          <li v-for="d in app.documents" :key="d.url"><a :href="d.url" target="_blank" rel="noopener">{{ d.name }}</a><span class="hint">{{ relTime(d.at) }}</span></li>
+        </ul>
+        <p v-else class="hint" style="margin:0">No documents uploaded yet.</p>
+        <template v-if="drive">
+          <div v-if="uploadLink && !expired" class="url-row">
+            <input class="inp" readonly :value="uploadLink" aria-label="Client upload link">
+            <button class="btn" type="button" @click="copyUploadLink">Copy</button>
+          </div>
+          <span class="hint">{{ uploadLink && !expired ? `Send this link to the client to upload documents. It works until ${longDate(app.upload_expires)}.` : 'The client’s upload link has expired.' }}</span>
+          <button class="btn small" type="button" style="align-self:flex-start" :disabled="renewing" @click="renewLink">{{ uploadLink && !expired ? 'Make a new link' : 'Create upload link' }}</button>
+        </template>
+        <p v-else class="hint" style="margin:0">Uploads aren’t set up for this agent yet: see <b>Requirements upload</b> on their card.</p>
       </div>
 
       <button class="btn" @click="copyDetails">Copy details</button>

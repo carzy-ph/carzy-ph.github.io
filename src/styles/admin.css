@@ -201,3 +201,8 @@
 .slug-row>.inp{flex:1;min-width:0}
 .signin-line{margin:0;font-size:14px;overflow-wrap:anywhere}
 .signin{display:flex;flex-direction:column;gap:8px}
+.ok-line{font-size:12px;color:var(--ok)}
+.doc-links{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.doc-links li{display:flex;justify-content:space-between;gap:10px;font-size:14px}
+.doc-links a{overflow-wrap:anywhere}
+.count-pill{font-family:var(--body);font-size:12px;border:1px solid var(--line);border-radius:999px;padding:0 8px;margin-left:4px;vertical-align:3px}

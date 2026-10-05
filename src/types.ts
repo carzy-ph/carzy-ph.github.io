@@ -46,6 +46,43 @@ export type CivilStatus = 'single' | 'married' | 'widowed' | 'separated' | 'annu
 export type ResidenceType = 'owned' | 'rented' | 'with_relatives' | 'company_provided';
 export type EmploymentType = 'employed' | 'business' | 'ofw';
 export type Source = 'nfc' | 'qr' | 'link';
+export type Relationship = 'spouse' | 'parent' | 'child' | 'sibling' | 'relative' | 'friend' | 'employer' | 'other';
+
+/** A co-maker's details: the same as the applicant's, plus how they're related. */
+export interface CoMakerInput {
+  relationship: Relationship | '';
+  first_name: string;
+  middle_name: string;
+  last_name: string;
+  birth_date: string;
+  birth_place: string;
+  mothers_maiden_name: string;
+  civil_status: CivilStatus | '';
+  mobile: string;
+  landline: string;
+  email: string;
+  address: string;
+  years_at_address: string;
+  residence_type: ResidenceType | '';
+  employment_type: EmploymentType;
+  employer_name: string;
+  position: string;
+  years_employed: string;
+  employer_address: string;
+  employer_phone: string;
+  monthly_income: string;
+  other_income_source: string;
+  other_income: string;
+  bank: string;
+  bank_branch: string;
+}
+
+/** A co-maker as saved (cleaned by the database; empty answers left out). */
+export type CoMaker = Partial<Omit<CoMakerInput, 'years_at_address' | 'years_employed' | 'monthly_income' | 'other_income'>> & {
+  years_at_address?: number; years_employed?: number; monthly_income?: number; other_income?: number;
+};
+
+export interface UploadedDocument { name: string; type: string; url: string; size: number; at: string }
 
 /** What the client fills in on the card page. Numbers stay as typed text; the database parses them. */
 export interface ApplicationInput {
@@ -78,6 +115,7 @@ export interface ApplicationInput {
   other_income: string;
   bank: string;
   bank_branch: string;
+  co_makers: CoMakerInput[];
   consent: boolean;
   /** Hidden from people; bots fill it in. */
   website: string;
@@ -118,6 +156,10 @@ export interface Application {
   other_income: number | null;
   bank: string | null;
   bank_branch: string | null;
+  co_makers: CoMaker[];
+  documents: UploadedDocument[];
+  upload_token: string | null;
+  upload_expires: string | null;
   consent: boolean;
   internal_note: string | null;
   created_at: string;
@@ -132,3 +174,15 @@ export interface AgentStats {
   last_tap: string | null;
   new_applications: number;
 }
+
+/** What submit_application returns. */
+export interface SubmitResult { ref: string; upload_token: string | null; upload_url: string | null }
+
+/** What upload_info returns for a client's upload link. */
+export interface UploadInfo {
+  ref: string; first_name: string; unit: string; employment_type: EmploymentType;
+  co_makers: number; expires: string; documents: { name: string; type: string }[]; upload_url: string | null;
+}
+
+/** An agent's own upload service (their copy of google/upload.gs). */
+export interface AgentDrive { agent_id: string; upload_url: string; account: string | null }

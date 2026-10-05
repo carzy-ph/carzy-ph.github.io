@@ -4,12 +4,13 @@
 import { computed, ref, watch } from 'vue';
 import { RouterLink, onBeforeRouteLeave, useRouter } from 'vue-router';
 import type { Agent, SocialType, TeamMember } from '@/types';
-import { cardUrl } from '@/config';
+import { CONFIG, cardUrl } from '@/config';
 import { SOCIAL, THEMES } from '@/lib/constants';
 import { initials, relTime } from '@/lib/format';
 import { COVER, PHOTO_ACCEPT, PHOTO_HINT, PROFILE, checkPhoto, optimizePhoto, photoPath } from '@/lib/image';
 import { catalogFor } from '@/lib/catalog';
 import { LINK_HINT, resolveLink, toLink } from '@/lib/links';
+import { isServiceUrl, testService } from '@/lib/upload';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/lib/toast';
 import { confirmDialog } from '@/lib/confirm';
@@ -36,6 +37,11 @@ const slugTouched = ref(false);
 const editingSlug = ref(false);
 /** Portal sign-in is the contact email unless an admin picks a different Google account. */
 const customLogin = ref(false);
+/** The agent's own requirements upload service (their copy of google/upload.gs). */
+const driveUrl = ref('');
+const driveAccount = ref('');
+const testing = ref(false);
+const driveStatus = ref<{ ok: boolean; text: string } | null>(null);
 const photoFile = ref<File | null>(null);
 const photoPreview = ref<string | null>(null);
 const coverFile = ref<File | null>(null);
@@ -49,7 +55,7 @@ let leaving = false;
 const isNew = computed(() => !props.id);
 const agentPortalUrl = location.origin + areaUrl('agent');
 const admin = computed(() => isAdmin.value);
-const snapshot = () => JSON.stringify([draft.value, loginEmail.value, customLogin.value]);
+const snapshot = () => JSON.stringify([draft.value, loginEmail.value, customLogin.value, driveUrl.value]);
 const effectiveLogin = computed(() => (customLogin.value ? loginEmail.value : draft.value.email).trim().toLowerCase());
 const dirty = computed(() => saved.value !== snapshot() || Boolean(photoFile.value) || Boolean(coverFile.value));
 const stats = computed(() => (props.id ? store.stats[props.id] : undefined));
@@ -82,6 +88,10 @@ function load() {
   slugTouched.value = Boolean(a);
   editingSlug.value = false;
   customLogin.value = Boolean(loginEmail.value && loginEmail.value !== (a?.email ?? '').trim().toLowerCase());
+  const drive = a ? store.drives[a.id] : undefined;
+  driveUrl.value = drive?.upload_url ?? '';
+  driveAccount.value = drive?.account ?? '';
+  driveStatus.value = drive ? { ok: true, text: `Connected${drive.account ? ` as ${drive.account}` : ''}. Files go to “Carzy requirements” in that Google Drive.` } : null;
   if (photoPreview.value) URL.revokeObjectURL(photoPreview.value);
   photoFile.value = null;
   photoPreview.value = null;
@@ -156,6 +166,18 @@ function moveLink(i: number, by: number) {
   [l[i], l[i + by]] = [l[i + by]!, l[i]!];
 }
 
+async function testUpload() {
+  testing.value = true;
+  const r = await testService(driveUrl.value);
+  testing.value = false;
+  if (r.ok) {
+    driveAccount.value = r.account;
+    driveStatus.value = { ok: true, text: `Working. Files will go to “${r.folder}” in ${r.account}’s Google Drive. Save to turn it on.` };
+  } else {
+    driveStatus.value = { ok: false, text: r.error };
+  }
+}
+
 async function copyLink() {
   try { await navigator.clipboard.writeText(nfcLink.value); toast('Link copied. Paste it into your NFC writer app.'); }
   catch { toast('Copy didn’t work here. Select the link and copy it manually.'); }
@@ -168,6 +190,7 @@ async function save() {
   if (!/^[a-z0-9][a-z0-9-]{1,39}$/.test(a.slug)) return toast('Card address: 2–40 lowercase letters, numbers or dashes.');
   const brokenLink = a.links.find(l => (l.url.trim() || l.label.trim()) && !toLink(l.type, l.url) && !resolveLink(l));
   if (brokenLink) return toast(`Add the ${SOCIAL[brokenLink.type].name} link, handle or number, or remove that row.`);
+  if (driveUrl.value.trim() && !isServiceUrl(driveUrl.value)) return toast('The upload service link should be the Web app URL ending in /exec.');
   if (slugTaken(a.slug)) return toast(`The card address “${a.slug}” is already used by another agent. Pick a different one.`);
   if (admin.value && login) {
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(login)) return toast('Enter a valid portal login email.');
@@ -231,6 +254,16 @@ async function save() {
           if (r.error) throw r.error;
         }
       }
+    }
+
+    // The agent's own upload service: save, change or remove it.
+    const savedUrl = store.drives[a.id]?.upload_url ?? '';
+    const newUrl = driveUrl.value.trim();
+    if (newUrl !== savedUrl) {
+      const r = newUrl
+        ? await supabase.from('agent_drive').upsert({ agent_id: a.id, upload_url: newUrl, account: driveAccount.value || null, updated_at: new Date().toISOString() })
+        : await supabase.from('agent_drive').delete().eq('agent_id', a.id);
+      if (r.error) throw r.error;
     }
 
     // Delete photos this save replaced or removed, so storage only holds what cards use.
@@ -411,6 +444,26 @@ onBeforeRouteLeave(async () => {
           </div>
         </section>
 
+
+        <section class="block">
+          <div class="block-h"><h2>Requirements upload</h2><span class="hint">Google Drive</span></div>
+          <p class="hint" style="margin:0">Clients upload their documents straight into a <b>Carzy requirements</b> folder in {{ admin ? 'this agent’s' : 'your' }} own Google Drive. Set it up once:</p>
+          <ol class="nfc-steps">
+            <li v-if="CONFIG.uploadTemplateUrl">Signed in to {{ admin ? 'the agent’s' : 'your' }} Google account, open the <a :href="CONFIG.uploadTemplateUrl" target="_blank" rel="noopener">Carzy upload script</a> and choose <b>Make a copy</b>.</li>
+            <li v-else>Ask your admin for the Carzy upload script link, open it signed in to {{ admin ? 'the agent’s' : 'your' }} Google account, and choose <b>Make a copy</b>.</li>
+            <li>In the copy, click <b>Deploy → New deployment</b>, choose <b>Web app</b>, set <b>Execute as: Me</b> and <b>Who has access: Anyone</b>, then <b>Deploy</b> and allow access.</li>
+            <li>Copy the <b>Web app URL</b>, paste it below, click <b>Test</b>, then save.</li>
+          </ol>
+          <div class="field">
+            <label for="f-upload">Upload service link</label>
+            <div class="url-row">
+              <input id="f-upload" v-model="driveUrl" class="inp" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" spellcheck="false" @input="driveStatus = null">
+              <button class="btn" type="button" :disabled="!driveUrl.trim() || testing" @click="testUpload">{{ testing ? 'Testing…' : 'Test' }}</button>
+            </div>
+            <span v-if="driveStatus" :class="driveStatus.ok ? 'ok-line' : 'warn'">{{ driveStatus.text }}</span>
+            <span v-else-if="!driveUrl.trim()" class="hint">Not set up: clients see a list of documents to prepare instead of an upload button.</span>
+          </div>
+        </section>
 
         <section class="block">
           <div class="block-h"><h2>NFC card link</h2><span v-if="!admin" class="lock">Set by admin</span></div>

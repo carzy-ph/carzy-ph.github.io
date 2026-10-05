@@ -1,11 +1,15 @@
 <script setup lang="ts">
-// Car loan application, in four short steps so it is manageable on a phone.
+// Car loan application, in five short steps so it is manageable on a phone (the last, co-makers, is optional).
 // Progress is kept in sessionStorage (cleared when the tab closes or the form is sent),
 // so a client can switch apps to look up details like their HR's number without losing it.
 import { computed, nextTick, reactive, ref, watch } from 'vue';
-import type { ApplicationInput, Catalog, CivilStatus, EmploymentType, ResidenceType } from '@/types';
+import type { ApplicationInput, Catalog, CivilStatus, CoMakerInput, EmploymentType, ResidenceType, SubmitResult } from '@/types';
 import { CIVIL_STATUS, EMPLOYMENT, PH_BANKS, RESIDENCE } from '@/lib/constants';
 import { age, isPhMobile } from '@/lib/format';
+import '@/styles/form.css';
+import BirthdayInput from './BirthdayInput.vue';
+import CoMakerForm from './CoMakerForm.vue';
+import DocumentUpload from './DocumentUpload.vue';
 
 const props = defineProps<{
   agentName: string;
@@ -14,8 +18,8 @@ const props = defineProps<{
   catalog: Catalog;
   /** sessionStorage key for the in-progress draft. Leave out in the portal preview. */
   draftKey?: string;
-  /** Sends the application and resolves to its reference number. Leave out in the portal preview. */
-  submit?: (p: ApplicationInput) => Promise<string>;
+  /** Sends the application. Leave out in the portal preview. */
+  submit?: (p: ApplicationInput) => Promise<SubmitResult>;
 }>();
 
 const blank = (): ApplicationInput => ({
@@ -23,14 +27,27 @@ const blank = (): ApplicationInput => ({
   mothers_maiden_name: '', civil_status: '', mobile: '', landline: '', email: '', address: '',
   years_at_address: '', residence_type: '', employment_type: 'employed', employer_name: '', position: '',
   years_employed: '', employer_address: '', employer_phone: '', monthly_income: '',
-  other_income_source: '', other_income: '', bank: '', bank_branch: '', consent: false, website: ''
+  other_income_source: '', other_income: '', bank: '', bank_branch: '', co_makers: [], consent: false, website: ''
+});
+
+const MAX_CO_MAKERS = 3;
+const blankCoMaker = (): CoMakerInput => ({
+  relationship: '', first_name: '', middle_name: '', last_name: '', birth_date: '', birth_place: '',
+  mothers_maiden_name: '', civil_status: '', mobile: '', landline: '', email: '', address: '',
+  years_at_address: '', residence_type: '', employment_type: 'employed', employer_name: '', position: '',
+  years_employed: '', employer_address: '', employer_phone: '', monthly_income: '',
+  other_income_source: '', other_income: '', bank: '', bank_branch: ''
 });
 
 function loadDraft(): ApplicationInput {
   if (props.draftKey) {
     try {
       const saved = sessionStorage.getItem(props.draftKey);
-      if (saved) return { ...blank(), ...JSON.parse(saved), consent: false, website: '' };
+      if (saved) {
+        const d = { ...blank(), ...JSON.parse(saved), consent: false, website: '' };
+        d.co_makers = Array.isArray(d.co_makers) ? d.co_makers.map((c: CoMakerInput) => ({ ...blankCoMaker(), ...c })) : [];
+        return d;
+      }
     } catch { /* storage blocked: start fresh */ }
   }
   return blank();
@@ -42,13 +59,22 @@ watch(form, v => {
   try { sessionStorage.setItem(props.draftKey, JSON.stringify({ ...v, consent: false })); } catch { /* ignore */ }
 }, { deep: true });
 
-const STEPS = ['Unit & you', 'Contact', 'Work', 'Bank'];
+const STEPS = ['Unit & you', 'Contact', 'Work', 'Bank', 'Co-maker'];
+const LAST = STEPS.length - 1;
 const step = ref(0);
 const root = ref<HTMLElement>();
 const errors = reactive<Partial<Record<keyof ApplicationInput, string>>>({});
 const sending = ref(false);
 const formError = ref('');
-const doneRef = ref('');
+const done = ref<SubmitResult | null>(null);
+const birthFilled = ref(Boolean(form.birth_date));
+
+const coForms = ref<InstanceType<typeof CoMakerForm>[]>([]);
+function addCoMaker() {
+  form.co_makers.push(blankCoMaker());
+  nextTick(() => document.getElementById(`cm${form.co_makers.length - 1}-relationship`)?.focus());
+}
+function removeCoMaker(i: number) { form.co_makers.splice(i, 1); coForms.value.splice(i, 1); }
 
 const emp = computed(() => EMPLOYMENT[form.employment_type]);
 
@@ -66,20 +92,6 @@ watch(singleBrand, b => { if (b) form.brand_id = b.id; }, { immediate: true });
 watch(() => form.brand_id, (now, before) => { if (before !== undefined && now !== before) form.model_id = ''; });
 watch(() => form.model_id, (now, before) => { if (before !== undefined && now !== before) form.variant = ''; });
 const firstAgentName = computed(() => props.agentName.split(' ')[0]);
-// Birthday is typed as MM / DD / YYYY (faster than scrolling a calendar back decades) and kept as YYYY-MM-DD.
-const toBirthText = (iso: string) => (iso ? `${iso.slice(5, 7)} / ${iso.slice(8, 10)} / ${iso.slice(0, 4)}` : '');
-const birthText = ref(toBirthText(form.birth_date));
-function onBirth(e: Event) {
-  const input = e.target as HTMLInputElement;
-  const d = input.value.replace(/\D/g, '').slice(0, 8);
-  birthText.value = [d.slice(0, 2), d.slice(2, 4), d.slice(4, 8)].filter(Boolean).join(' / ');
-  input.value = birthText.value;
-  const [mm, dd, yyyy] = [Number(d.slice(0, 2)), Number(d.slice(2, 4)), Number(d.slice(4, 8))];
-  const date = new Date(yyyy, mm - 1, dd);
-  const real = d.length === 8 && yyyy > 1900 && date.getMonth() === mm - 1 && date.getDate() === dd;
-  form.birth_date = real ? `${d.slice(4, 8)}-${d.slice(0, 2)}-${d.slice(2, 4)}` : '';
-}
-
 const civilOptions = Object.entries(CIVIL_STATUS) as [CivilStatus, string][];
 const residenceOptions = Object.entries(RESIDENCE) as [ResidenceType, string][];
 const employmentOptions = Object.entries(EMPLOYMENT).map(([k, v]) => [k, v.label]) as [EmploymentType, string][];
@@ -96,7 +108,7 @@ function check(i: number): boolean {
     else if (model.value.variants.length && !model.value.variants.includes(form.variant)) errors.variant = 'Choose a variant.';
     need('first_name', 'Enter your first name.');
     need('last_name', 'Enter your last name.');
-    if (!birthText.value) errors.birth_date = 'Enter your birthday as MM / DD / YYYY.';
+    if (!birthFilled.value) errors.birth_date = 'Enter your birthday as MM / DD / YYYY.';
     else if (!form.birth_date) errors.birth_date = 'Check the date: use MM / DD / YYYY, for example 05 / 14 / 1990.';
     else if (age(form.birth_date) < 18) errors.birth_date = 'You must be at least 18 to apply.';
     need('birth_place', 'Enter your birthplace.');
@@ -105,7 +117,7 @@ function check(i: number): boolean {
   }
   if (i === 1) {
     if (!isPhMobile(form.mobile)) errors.mobile = 'Use a PH mobile number, for example 0917 123 4567.';
-    if (form.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.email)) errors.email = 'Check the email address.';
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.email.trim())) errors.email = 'Enter your email address, for example you@email.com.';
     need('address', 'Enter your complete address.');
   }
   if (i === 2) {
@@ -114,6 +126,10 @@ function check(i: number): boolean {
   }
   if (i === 3) {
     if (form.other_income && !money(form.other_income)) errors.other_income = 'Enter an amount in pesos, or leave it blank.';
+  }
+  if (i === LAST) {
+    // Co-makers check their own fields (and focus the first problem); stop at the first incomplete one.
+    if (!coForms.value.every(f => f.validate())) return false;
     if (!form.consent) errors.consent = 'Please tick the box so we can process your application.';
   }
 
@@ -133,12 +149,12 @@ function go(i: number) {
 function next() { if (check(step.value)) go(step.value + 1); }
 
 async function send() {
-  if (!check(3)) return;
+  if (!check(LAST)) return;
   if (!props.submit) { formError.value = 'Preview only. Applications are sent from the live card page.'; return; }
   sending.value = true;
   formError.value = '';
   try {
-    doneRef.value = await props.submit({ ...form });
+    done.value = await props.submit(JSON.parse(JSON.stringify(form)));
     if (props.draftKey) try { sessionStorage.removeItem(props.draftKey); } catch { /* ignore */ }
     scrollTop();
   } catch (e) {
@@ -160,19 +176,23 @@ const prepare = computed(() => {
 
 <template>
   <div ref="root" class="app-form">
-    <div v-if="doneRef" class="done" role="status">
+    <div v-if="done" class="done" role="status">
       <h3>Application sent</h3>
       <p>Thanks, {{ form.first_name }}! {{ firstAgentName }} will contact you within 1 business day about the next steps for your {{ unitName }}.</p>
-      <span class="ref">Reference {{ doneRef }}</span>
-      <div class="prep">
+      <span class="ref">Reference {{ done.ref }}</span>
+      <DocumentUpload
+        v-if="done.upload_url && done.upload_token"
+        :upload-url="done.upload_url" :app-ref="done.ref" :token="done.upload_token"
+        :employment-type="form.employment_type" :co-makers="form.co_makers.length" />
+      <div v-else class="prep">
         <b>Documents to prepare</b>
         <ul><li v-for="p in prepare" :key="p">{{ p }}</li></ul>
         <span class="hint">Banks may ask for more, depending on your application.</span>
       </div>
     </div>
 
-    <form v-else novalidate @submit.prevent="step === 3 ? send() : next()">
-      <ol class="steps" aria-label="Application steps">
+    <form v-else novalidate @submit.prevent="step === LAST ? send() : next()">
+      <ol class="steps" aria-label="Application steps" :style="{ '--steps': STEPS.length }">
         <li v-for="(s, i) in STEPS" :key="s" :class="{ on: i <= step }" :aria-current="i === step ? 'step' : undefined">{{ s }}</li>
       </ol>
 
@@ -231,7 +251,7 @@ const prepare = computed(() => {
         <div class="row2">
           <div class="field" :class="{ invalid: errors.birth_date }">
             <label for="app-birth_date">Birthday</label>
-            <input id="app-birth_date" :value="birthText" type="text" inputmode="numeric" autocomplete="bday" placeholder="MM / DD / YYYY" maxlength="14" @input="onBirth">
+            <BirthdayInput id="app-birth_date" v-model="form.birth_date" v-model:filled="birthFilled" />
             <span class="err">{{ errors.birth_date }}</span>
           </div>
           <div class="field" :class="{ invalid: errors.birth_place }">
@@ -272,7 +292,7 @@ const prepare = computed(() => {
           </div>
         </div>
         <div class="field" :class="{ invalid: errors.email }">
-          <label for="app-email">Email address <span class="opt">(optional)</span></label>
+          <label for="app-email">Email address</label>
           <input id="app-email" v-model="form.email" type="email" autocomplete="email" placeholder="you@email.com">
           <span class="err">{{ errors.email }}</span>
         </div>
@@ -363,11 +383,27 @@ const prepare = computed(() => {
           <button v-for="b in PH_BANKS.slice(0, 8)" :key="b" type="button" :class="{ on: form.bank === b }" @click="form.bank = b">{{ b }}</button>
         </div>
         <span class="hint">The bank where you have an account. This is not the financing bank.</span>
+      </fieldset>
+
+      <!-- Step 5: Co-makers (optional) + consent -->
+      <fieldset v-show="step === LAST">
+        <legend>Co-maker <span class="opt">(optional)</span></legend>
+        <p class="hint" style="margin:0">A co-maker also signs the loan and helps your approval, usually a spouse or relative. Skip this if you don’t have one.</p>
+        <section v-for="(_, i) in form.co_makers" :key="i" class="co-card">
+          <div class="co-head">
+            <h3>Co-maker {{ i + 1 }}</h3>
+            <button type="button" class="btn small" @click="removeCoMaker(i)">Remove</button>
+          </div>
+          <CoMakerForm :ref="el => { if (el) coForms[i] = el as InstanceType<typeof CoMakerForm> }" v-model="form.co_makers[i]!" :index="i" />
+        </section>
+        <button v-if="form.co_makers.length < MAX_CO_MAKERS" type="button" class="btn add-co" @click="addCoMaker">
+          + Add {{ form.co_makers.length ? 'another' : 'a' }} co-maker
+        </button>
         <div class="hp" aria-hidden="true"><label for="app-website">Website</label><input id="app-website" v-model="form.website" tabindex="-1" autocomplete="off"></div>
         <div class="field" :class="{ invalid: errors.consent }">
           <label class="consent">
             <input id="app-consent" v-model="form.consent" type="checkbox">
-            <span>I certify that the information above is true and correct. I authorize {{ dealership }} and {{ agentName }} to process it and share it with partner banks and financing companies to evaluate my car loan application, in line with the Data Privacy Act of 2012 (RA 10173).</span>
+            <span>I certify that the information above is true and correct{{ form.co_makers.length ? ', and that my co-makers agreed to share theirs' : '' }}. I authorize {{ dealership }} and {{ agentName }} to process it and share it with partner banks and financing companies to evaluate my car loan application, in line with the Data Privacy Act of 2012 (RA 10173).</span>
           </label>
           <span class="err">{{ errors.consent }}</span>
         </div>
@@ -377,67 +413,10 @@ const prepare = computed(() => {
 
       <div class="nav">
         <button v-if="step > 0" type="button" class="btn" @click="go(step - 1)">Back</button>
-        <button v-if="step < 3" type="submit" class="btn primary">Next</button>
+        <button v-if="step < LAST" type="submit" class="btn primary">Next</button>
         <button v-else type="submit" class="btn primary" :disabled="sending">{{ sending ? 'Sending…' : 'Send application' }}</button>
       </div>
     </form>
   </div>
 </template>
 
-<style scoped>
-.app-form { scroll-margin-top: 16px; }
-form { display: flex; flex-direction: column; gap: 16px; }
-.steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
-.steps li { display: flex; flex-direction: column; gap: 6px; font-size: 11px; color: var(--muted); font-weight: 600; }
-.steps li::before { content: ""; height: 4px; border-radius: 2px; background: var(--line); }
-.steps li.on { color: var(--ink); }
-.steps li.on::before { background: var(--brand); }
-fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-legend { font-family: var(--display); font-size: 22px; font-weight: 600; text-transform: uppercase; padding: 0; margin-bottom: 4px; }
-.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.field > label, .field > .lbl { font-size: 13px; font-weight: 600; }
-.opt { font-weight: 400; color: var(--muted); }
-.hint { font-size: 12px; color: var(--muted); }
-input[type=text], input[type=tel], input[type=email], textarea {
-  width: 100%; font: inherit; font-size: 16px; color: var(--ink); background: var(--surface-2);
-  border: 1px solid var(--line); border-radius: 10px; padding: 12px; min-width: 0;
-}
-input.short { max-width: 140px; }
-textarea { resize: vertical; }
-input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: transparent; }
-.money { display: flex; align-items: center; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; }
-.money span { padding-left: 12px; color: var(--muted); font-weight: 600; }
-.money input { border: 0; background: none; font-variant-numeric: tabular-nums; }
-.money input:focus { outline: none; }
-.money:focus-within { outline: 2px solid var(--accent); }
-.err { font-size: 12px; color: var(--err); display: none; }
-.field.invalid .err { display: block; }
-.field.invalid input:not([type=radio]), .field.invalid textarea, .field.invalid .money { border-color: var(--err); }
-.chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.chips label { position: relative; }
-.chips input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
-.chips span { display: inline-block; padding: 9px 13px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-2); font-size: 14px; font-weight: 500; }
-.chips input:checked + span { background: var(--brand); border-color: var(--brand); color: #fff; }
-.chips .dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 7px; vertical-align: 0; }
-.field.invalid .chips span { border-color: var(--err); }
-.quick-banks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: -4px; }
-.quick-banks button { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 6px 11px; font-size: 13px; font-weight: 500; cursor: pointer; }
-.quick-banks button.on { background: var(--brand); border-color: var(--brand); color: #fff; }
-.chips input:focus-visible + span { outline: 2px solid var(--signal); outline-offset: 2px; }
-.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-@media (max-width: 360px) { .row2 { grid-template-columns: 1fr; } }
-.consent { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; color: var(--muted); font-weight: 400 !important; }
-.consent input { margin-top: 3px; width: 18px; height: 18px; accent-color: var(--brand); flex: none; }
-.hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
-.nav { display: flex; gap: 10px; margin-top: 4px; }
-.btn { flex: 1; padding: 14px; border-radius: 12px; font: 600 15px/1 var(--body); cursor: pointer; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); }
-.btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
-.btn:disabled { opacity: .6; cursor: default; }
-.form-error { font-size: 13px; color: var(--err); border: 1px solid var(--err); border-radius: 10px; padding: 10px 12px; margin: 0; }
-.done { display: flex; flex-direction: column; gap: 10px; }
-.done h3 { font-size: 28px; text-transform: uppercase; color: var(--ok); }
-.done p { margin: 0; }
-.ref { font-family: var(--mono); font-size: 13px; color: var(--muted); }
-.prep { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 4px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
-.prep ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
-</style>

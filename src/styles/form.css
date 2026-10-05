@@ -1,0 +1,67 @@
+/* Car loan application form (ApplicationForm, co-makers, requirements upload).
+   Shared (not scoped) so the co-maker and upload parts inside .app-form match the main form. */
+.app-form { scroll-margin-top: 16px; }
+.app-form form { display: flex; flex-direction: column; gap: 16px; }
+.app-form .steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(var(--steps, 4), 1fr); gap: 6px; }
+.app-form .steps li { display: flex; flex-direction: column; gap: 6px; font-size: 11px; color: var(--muted); font-weight: 600; }
+.app-form .steps li::before { content: ""; height: 4px; border-radius: 2px; background: var(--line); }
+.app-form .steps li.on { color: var(--ink); }
+.app-form .steps li.on::before { background: var(--brand); }
+.app-form fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.app-form legend { font-family: var(--display); font-size: 22px; font-weight: 600; text-transform: uppercase; padding: 0; margin-bottom: 4px; }
+.app-form .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.app-form .field > label, .app-form .field > .lbl { font-size: 13px; font-weight: 600; }
+.app-form .opt { font-weight: 400; color: var(--muted); }
+.app-form .hint { font-size: 12px; color: var(--muted); }
+.app-form input[type=text], .app-form input[type=tel], .app-form input[type=email], .app-form textarea {
+  width: 100%; font: inherit; font-size: 16px; color: var(--ink); background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: 10px; padding: 12px; min-width: 0;
+}
+.app-form input.short { max-width: 140px; }
+.app-form textarea { resize: vertical; }
+.app-form input:focus, .app-form textarea:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: transparent; }
+.app-form .money { display: flex; align-items: center; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; }
+.app-form .money span { padding-left: 12px; color: var(--muted); font-weight: 600; }
+.app-form .money input { border: 0; background: none; font-variant-numeric: tabular-nums; }
+.app-form .money input:focus { outline: none; }
+.app-form .money:focus-within { outline: 2px solid var(--accent); }
+.app-form .err { font-size: 12px; color: var(--err); display: none; }
+.app-form .field.invalid .err { display: block; }
+.app-form .field.invalid input:not([type=radio]), .app-form .field.invalid textarea, .app-form .field.invalid .money { border-color: var(--err); }
+.app-form .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.app-form .chips label { position: relative; }
+.app-form .chips input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.app-form .chips span { display: inline-block; padding: 9px 13px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-2); font-size: 14px; font-weight: 500; }
+.app-form .chips input:checked + span { background: var(--brand); border-color: var(--brand); color: #fff; }
+.app-form .chips .dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 7px; vertical-align: 0; }
+.app-form .field.invalid .chips span { border-color: var(--err); }
+.app-form .quick-banks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: -4px; }
+.app-form .quick-banks button { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; padding: 6px 11px; font-size: 13px; font-weight: 500; cursor: pointer; }
+.app-form .quick-banks button.on { background: var(--brand); border-color: var(--brand); color: #fff; }
+.app-form .chips input:focus-visible + span { outline: 2px solid var(--signal); outline-offset: 2px; }
+.app-form .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 360px) { .app-form .row2 { grid-template-columns: 1fr; } }
+.app-form .consent { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; color: var(--muted); font-weight: 400 !important; }
+.app-form .consent input { margin-top: 3px; width: 18px; height: 18px; accent-color: var(--brand); flex: none; }
+.app-form .hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+.app-form .nav { display: flex; gap: 10px; margin-top: 4px; }
+.app-form .btn { flex: 1; padding: 14px; border-radius: 12px; font: 600 15px/1 var(--body); cursor: pointer; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); }
+.app-form .btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+.app-form .btn:disabled { opacity: .6; cursor: default; }
+.app-form .form-error { font-size: 13px; color: var(--err); border: 1px solid var(--err); border-radius: 10px; padding: 10px 12px; margin: 0; }
+.app-form .done { display: flex; flex-direction: column; gap: 10px; }
+.app-form .done h3 { font-size: 28px; text-transform: uppercase; color: var(--ok); }
+.app-form .done p { margin: 0; }
+.app-form .ref { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+.app-form .prep { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 4px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.app-form .prep ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+
+/* Co-makers */
+.app-form .co-card { border: 1px solid var(--line); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+.app-form .co-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.app-form .co-head h3 { font-size: 20px; text-transform: uppercase; }
+.app-form .co-maker { display: flex; flex-direction: column; gap: 14px; }
+.app-form .co-maker h4 { margin: 6px 0 0; font-family: var(--display); font-size: 16px; text-transform: uppercase; color: var(--muted); }
+.app-form .btn.small { flex: none; padding: 8px 12px; font-size: 13px; }
+.app-form .add-co { border-style: dashed; }
+.app-form legend .opt { font-family: var(--body); font-size: 13px; text-transform: none; }

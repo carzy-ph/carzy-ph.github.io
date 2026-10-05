@@ -1,6 +1,6 @@
 // Labels for values stored in the database. Change labels freely; keep the keys stable,
 // because submit_application() in supabase/schema.sql only accepts these keys.
-import type { AppStatus, CivilStatus, EmploymentType, ResidenceType, SocialType, Source } from '@/types';
+import type { AppStatus, CivilStatus, EmploymentType, Relationship, ResidenceType, SocialType, Source } from '@/types';
 
 export const SOCIAL: Record<SocialType, { name: string; glyph: string; color: string }> = {
   facebook:  { name: 'Facebook',  glyph: 'f',   color: '#1877F2' },
@@ -50,6 +50,27 @@ export const EMPLOYMENT: Record<EmploymentType, { label: string; nameLabel: stri
     addressLabel: 'Employer address / country', phoneLabel: 'Employer / agency contact number'
   }
 };
+
+export const RELATIONSHIP: Record<Relationship, string> = {
+  spouse: 'Spouse', parent: 'Parent', child: 'Son / daughter', sibling: 'Sibling',
+  relative: 'Other relative', friend: 'Friend', employer: 'Employer', other: 'Other'
+};
+
+/** Requirements checklist on the upload page; the label also names the file in Drive. */
+export function requirementTypes(employment: EmploymentType, coMakers: number): { type: string; hint: string }[] {
+  const income = {
+    employed: { type: 'Proof of income', hint: 'Latest 3 months’ payslips and Certificate of Employment' },
+    business: { type: 'Proof of income', hint: 'DTI or SEC registration, latest ITR, 6 months’ bank statements' },
+    ofw: { type: 'Proof of income', hint: 'Employment contract and proof of remittances' }
+  }[employment];
+  return [
+    { type: 'Valid ID', hint: 'Two government IDs, front and back' },
+    income,
+    { type: 'Proof of billing', hint: 'A recent utility bill at your address' },
+    ...(coMakers ? [{ type: 'Co-maker documents', hint: 'Co-maker’s valid IDs and proof of income' }] : []),
+    { type: 'Other', hint: 'Anything else your agent asked for' }
+  ];
+}
 
 export const SOURCE: Record<Source, string> = { nfc: 'NFC card', qr: 'QR code', link: 'Shared link' };
 

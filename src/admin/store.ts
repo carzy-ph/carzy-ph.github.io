@@ -1,7 +1,7 @@
 // Portal state: who is signed in and the data they're allowed to see.
 // The database rules decide what each query returns, so agents only ever receive their own rows.
 import { computed, reactive } from 'vue';
-import type { Agent, AgentStats, Application, Brand, TeamMember, UnitModel } from '@/types';
+import type { Agent, AgentDrive, AgentStats, Application, Brand, TeamMember, UnitModel } from '@/types';
 import { isConfigured } from '@/config';
 import { supabase } from '@/lib/supabase';
 import { cardColor } from '@/lib/catalog';
@@ -25,7 +25,9 @@ export const store = reactive({
   models: [] as UnitModel[],
   stats: {} as Record<string, AgentStats>,
   applications: [] as Application[],
-  team: [] as TeamMember[]
+  team: [] as TeamMember[],
+  /** Each agent's own upload service, by agent id (admins see all; agents their own). */
+  drives: {} as Record<string, AgentDrive>
 });
 
 /** Admin screens and powers apply only at /admin/. At /portal/ everyone, admins included, works as an agent. */
@@ -91,15 +93,17 @@ export function boot(): Promise<void> {
 
 export async function loadAll() {
   const admin = isAdmin.value;
-  const [ag, br, md, st, ap, tm] = await Promise.all([
+  const [ag, br, md, st, ap, tm, dr] = await Promise.all([
     supabase.from('agents').select('*').order('name'),
     supabase.from('brands').select('*').order('sort').order('name'),
     supabase.from('models').select('*').order('sort').order('name'),
     supabase.rpc('agent_stats'),
     supabase.from('applications').select('*').order('created_at', { ascending: false }).limit(2000),
-    admin ? supabase.from('team').select('*') : Promise.resolve({ data: [], error: null })
+    admin ? supabase.from('team').select('*') : Promise.resolve({ data: [], error: null }),
+    supabase.from('agent_drive').select('*')
   ]);
-  for (const r of [ag, br, md, st, ap, tm]) if (r.error) throw r.error;
+  for (const r of [ag, br, md, st, ap, tm, dr]) if (r.error) throw r.error;
+  store.drives = Object.fromEntries(((dr.data ?? []) as AgentDrive[]).map(d => [d.agent_id, d]));
   store.brands = (br.data ?? []) as Brand[];
   store.models = (md.data ?? []) as UnitModel[];
   const agents = (ag.data ?? []) as Agent[];
@@ -116,7 +120,7 @@ export async function loadAll() {
 
 export async function signOut() {
   await supabase.auth.signOut();
-  Object.assign(store, { phase: 'signed-out', me: null, email: '', agents: [], brands: [], models: [], stats: {}, applications: [], team: [] });
+  Object.assign(store, { phase: 'signed-out', me: null, email: '', agents: [], brands: [], models: [], stats: {}, applications: [], team: [], drives: {} });
 }
 
 // A magic-link click signs in on page load.

@@ -176,6 +176,32 @@ Then, on GitHub:
 Don't change an agent's card address (`/cards/marco/`) once it's written to a physical card.
 Everything else can change at any time and shows up immediately.
 
+## Requirements upload (Google Drive)
+
+After sending the application, clients can upload their requirements (valid IDs, proof of income,
+proof of billing, co-maker documents). Each agent's files go into a **"Carzy requirements"** folder in
+**that agent's own Google Drive**, with a subfolder per application (for example
+`A-BED872 - Juan Dela Cruz`). Clients get a private upload link valid for 30 days; agents can copy
+or renew it from the application in the portal.
+
+**Admin, once:**
+1. Open [script.google.com](https://script.google.com) → **New project** → name it `Carzy upload`.
+2. Replace the code with `google/upload.gs`. At the top, set `SUPABASE_URL` and `SUPABASE_KEY`
+   (the **publishable** key, never the secret one). Save.
+3. **Share → General access → Anyone with the link → Viewer**, and copy the link.
+4. Add that link as the GitHub repository variable `VITE_UPLOAD_TEMPLATE_URL`, so the portal shows
+   it to agents. It's picked up on the next deploy.
+
+**Each agent, once (about 3 minutes):** in the portal, open **My card → Requirements upload** and
+follow the steps there:
+1. Open the script link and click **Make a copy**, signed in to their own Google account.
+2. Click **Deploy → New deployment → Web app**, with **Execute as: Me** and **Who has access: Anyone**,
+   then deploy and allow access.
+3. Paste the Web app URL, click **Test**, then save.
+
+Limits: PDF, JPG, PNG or WebP, up to 10 MB each, at most 20 files per application. Phone photos are
+shrunk before upload. Files use the agent's own Google storage (15 GB free).
+
 ## Day to day
 - **An agent leaves:** turn off **Card is live**. Their card then shows the dealership contact.
   Their applications stay, and you can reassign them from each application's details.

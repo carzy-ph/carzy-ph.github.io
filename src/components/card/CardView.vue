@@ -2,7 +2,7 @@
 // The agent's public card. Used as-is by the card page and by the portal's live preview,
 // so the preview always matches what clients see.
 import { computed } from 'vue';
-import type { Agent, ApplicationInput, Catalog, Source } from '@/types';
+import type { Agent, ApplicationInput, Catalog, Source, SubmitResult } from '@/types';
 import { SOCIAL } from '@/lib/constants';
 import { initials, safeUrl, toIntl } from '@/lib/format';
 import { saveContact } from '@/lib/vcard';
@@ -18,7 +18,7 @@ const props = defineProps<{
   source?: Source;
   /** Portal preview: links don't navigate, the form doesn't send, the action bar stays in the frame. */
   preview?: boolean;
-  submit?: (p: ApplicationInput) => Promise<string>;
+  submit?: (p: ApplicationInput) => Promise<SubmitResult>;
 }>();
 
 const a = computed(() => props.agent);

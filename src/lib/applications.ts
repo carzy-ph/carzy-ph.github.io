@@ -1,13 +1,32 @@
 // Turning application records into readable text: the detail view, "Copy details", and CSV export.
-import type { Application } from '@/types';
-import { CIVIL_STATUS, EMPLOYMENT, RESIDENCE, SOURCE, STATUS } from './constants';
+import type { Application, CoMaker } from '@/types';
+import { CIVIL_STATUS, EMPLOYMENT, RELATIONSHIP, RESIDENCE, SOURCE, STATUS } from './constants';
 import { age, longDate, peso } from './format';
 import { download } from './vcard';
 
 type Row = [label: string, value: string];
 export interface Section { title: string; rows: Row[] }
 
-const years = (n: number | null) => (n == null ? '' : `${n} ${n === 1 ? 'year' : 'years'}`);
+const years = (n: number | null | undefined) => (n == null ? '' : `${n} ${n === 1 ? 'year' : 'years'}`);
+
+/** One co-maker as a single section (same details as the applicant, plus relationship). */
+function coMakerSection(c: CoMaker, i: number): Section {
+  const emp = EMPLOYMENT[c.employment_type ?? 'employed'];
+  const name = [c.first_name, c.middle_name, c.last_name].filter(Boolean).join(' ');
+  return { title: `Co-maker ${i + 1}: ${name}`, rows: [
+    ['Relationship', c.relationship ? RELATIONSHIP[c.relationship] : ''],
+    ['Birthday', c.birth_date ? `${longDate(c.birth_date)} (age ${age(c.birth_date)})` : ''], ['Birthplace', c.birth_place ?? ''],
+    ['Mother’s maiden name', c.mothers_maiden_name ?? ''], ['Civil status', c.civil_status ? CIVIL_STATUS[c.civil_status] : ''],
+    ['Mobile', c.mobile ?? ''], ['Landline', c.landline ?? ''], ['Email', c.email ?? ''],
+    ['Complete address', c.address ?? ''], ['Years staying', years(c.years_at_address)],
+    ['Residence', c.residence_type ? RESIDENCE[c.residence_type] : ''],
+    ['Work type', emp.label], [emp.nameLabel, c.employer_name ?? ''], ['Position', c.position ?? ''],
+    [emp.yearsLabel, years(c.years_employed)], ['Monthly income', peso(c.monthly_income)],
+    [emp.addressLabel, c.employer_address ?? ''], [emp.phoneLabel, c.employer_phone ?? ''],
+    ['Other source of income', c.other_income_source ?? ''], ['Average monthly income', peso(c.other_income)],
+    ['Bank', c.bank ?? ''], ['Branch', c.bank_branch ?? '']
+  ] };
+}
 
 /** Grouped like the client's form. Empty answers are left out. */
 export function sections(a: Application): Section[] {
@@ -32,7 +51,8 @@ export function sections(a: Application): Section[] {
     { title: 'Other income & bank', rows: [
       ['Other source of income', a.other_income_source ?? ''], ['Average monthly income', peso(a.other_income)],
       ['Bank', a.bank ?? ''], ['Branch', a.bank_branch ?? '']
-    ] }
+    ] },
+    ...(a.co_makers ?? []).map(coMakerSection)
   ];
   return list.map(s => ({ ...s, rows: s.rows.filter(([, v]) => v !== '') })).filter(s => s.rows.length);
 }
@@ -53,7 +73,10 @@ export function exportCsv(list: Application[], agentName: (id: string) => string
     ['Employment', a => EMPLOYMENT[a.employment_type].label], ['Employer / business', a => a.employer_name], ['Position', a => a.position],
     ['Years employed', a => a.years_employed], ['Employer address', a => a.employer_address], ['Employer / HR phone', a => a.employer_phone],
     ['Monthly income', a => a.monthly_income], ['Other income source', a => a.other_income_source], ['Other monthly income', a => a.other_income],
-    ['Bank', a => a.bank], ['Bank branch', a => a.bank_branch], ['Internal note', a => a.internal_note]
+    ['Bank', a => a.bank], ['Bank branch', a => a.bank_branch],
+    ['Co-makers', a => (a.co_makers ?? []).map(c => `${[c.first_name, c.last_name].join(' ')} (${c.relationship ? RELATIONSHIP[c.relationship] : ''}, ${c.mobile ?? ''}, ${peso(c.monthly_income)}/mo)`).join('; ')],
+    ['Documents uploaded', a => (a.documents ?? []).length],
+    ['Internal note', a => a.internal_note]
   ];
   const cell = (v: unknown) => {
     const s = v == null ? '' : String(v);

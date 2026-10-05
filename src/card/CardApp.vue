@@ -2,12 +2,13 @@
 // Public card page. Shows the profile copy built into the page right away (works even if
 // Supabase is paused), then loads the latest profile so admin edits appear immediately.
 import { onMounted, ref, watchEffect } from 'vue';
-import type { Agent, ApplicationInput, Brand, Catalog, Source, UnitModel } from '@/types';
+import type { Agent, ApplicationInput, Brand, Catalog, Source, SubmitResult, UnitModel } from '@/types';
 import { CONFIG, isConfigured } from '@/config';
 import { rest, rpc } from '@/lib/rest';
 import { catalogFor, emptyCatalog } from '@/lib/catalog';
 import CardView from '@/components/card/CardView.vue';
 import CardFallback from '@/components/card/CardFallback.vue';
+import UploadView from '@/components/card/UploadView.vue';
 
 interface Snapshot { agent: Agent; catalog: Catalog }
 function readSnapshot(): Snapshot | null {
@@ -64,16 +65,21 @@ function logTap() {
   rpc('log_tap', { p_slug: slug, p_source: source }).catch(() => {});
 }
 
-async function submit(p: ApplicationInput): Promise<string> {
+async function submit(p: ApplicationInput): Promise<SubmitResult> {
   if (!isConfigured) throw new Error('Preview mode: connect Supabase (see README) to receive applications.');
-  return rpc<string>('submit_application', { p_slug: slug, p, p_source: source });
+  return rpc<SubmitResult>('submit_application', { p_slug: slug, p, p_source: source });
 }
+
+// A client's private upload link: /cards/<agent>/?upload=<ref>&t=<token>
+const uploadRef = params.get('upload');
+const uploadToken = params.get('t');
 
 onMounted(() => { refresh(); logTap(); });
 </script>
 
 <template>
   <p v-if="state === 'loading'" class="loading">Loading…</p>
+  <UploadView v-else-if="uploadRef && uploadToken && state === 'ready' && agent && agent.active" :agent="agent" :catalog="catalog" :app-ref="uploadRef" :token="uploadToken" />
   <CardView v-else-if="state === 'ready' && agent && agent.active" :agent="agent" :catalog="catalog" :source="source" :submit="submit" />
   <CardFallback v-else :reason="state === 'offline' ? 'offline' : agent && !agent.active ? 'off' : 'missing'" :agent-name="agent?.name" />
 </template>
