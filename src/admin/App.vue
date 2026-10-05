@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { watch } from 'vue';
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router';
-import { isAdmin, myAgent, newCount, signOut, store } from './store';
+import { areaUrl, canSwitchArea, isAdmin, myAgent, newCount, signOut, store } from './store';
 import { toastMessage } from '@/lib/toast';
 import { CONFIG } from '@/config';
 import LoginView from './views/LoginView.vue';
@@ -32,6 +32,9 @@ const tabs = () => isAdmin.value
     </div>
     <div class="who">
       <ThemeToggle />
+      <a v-if="store.phase === 'ready' && canSwitchArea" class="btn small switch-area" :href="areaUrl(store.area === 'admin' ? 'agent' : 'admin')">
+        {{ store.area === 'admin' ? 'My card portal' : 'Admin' }} →
+      </a>
       <span v-if="store.phase === 'ready'" class="chip">{{ isAdmin ? 'Admin' : myAgent?.name || 'Agent' }}</span>
       <button v-if="['ready', 'no-access', 'error'].includes(store.phase)" class="btn small" @click="signOut">Sign out</button>
     </div>

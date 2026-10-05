@@ -28,7 +28,10 @@ export const store = reactive({
   team: [] as TeamMember[]
 });
 
-export const isAdmin = computed(() => store.me?.role === 'admin');
+/** Admin screens and powers apply only at /admin/. At /portal/ everyone, admins included, works as an agent. */
+export const isAdmin = computed(() => store.me?.role === 'admin' && store.area === 'admin');
+/** This login can open the other area too (an admin who is also linked to an agent card). */
+export const canSwitchArea = computed(() => store.me?.role === 'admin' && Boolean(store.me?.agent_id));
 export const myAgent = computed(() => store.agents.find(a => a.id === store.me?.agent_id) ?? null);
 export const agentById = (id: string | null | undefined) => store.agents.find(a => a.id === id) ?? null;
 export const brandName = (id: string | null | undefined) => store.brands.find(b => b.id === id)?.name ?? '';
@@ -70,8 +73,9 @@ export function boot(): Promise<void> {
       if (error) throw error;
       if (!me || (me.role === 'agent' && !me.agent_id)) { store.phase = 'no-access'; return; }
       // Signed in at the other area's address: go there (the session carries over, no new sign-in).
-      const home: Area = me.role === 'admin' ? 'admin' : 'agent';
-      if (home !== store.area) { location.replace(areaUrl(home)); return; }
+      // Admins may use both addresses if they're also linked to an agent card; agents only /portal/.
+      const allowed: Area[] = me.role === 'admin' ? (me.agent_id ? ['admin', 'agent'] : ['admin']) : ['agent'];
+      if (!allowed.includes(store.area)) { location.replace(areaUrl(allowed[0]!)); return; }
       store.me = me;
       await loadAll();
       store.phase = 'ready';
@@ -86,7 +90,7 @@ export function boot(): Promise<void> {
 }
 
 export async function loadAll() {
-  const admin = store.me?.role === 'admin';
+  const admin = isAdmin.value;
   const [ag, br, md, st, ap, tm] = await Promise.all([
     supabase.from('agents').select('*').order('name'),
     supabase.from('brands').select('*').order('sort').order('name'),
@@ -101,8 +105,13 @@ export async function loadAll() {
   const agents = (ag.data ?? []) as Agent[];
   store.agents = admin ? agents : agents.filter(a => a.id === store.me?.agent_id);
   store.stats = Object.fromEntries(((st.data ?? []) as AgentStats[]).map(r => [r.agent_id, r]));
-  store.applications = (ap.data ?? []) as Application[];
+  // The database lets admins read everything; at /portal/ an admin sees only their own card's applications.
+  const apps = (ap.data ?? []) as Application[];
+  store.applications = admin ? apps : apps.filter(a => a.agent_id === store.me?.agent_id);
   store.team = (tm.data ?? []) as TeamMember[];
+  // Pick up changes to your own login (e.g. you just linked yourself to an agent card).
+  const mine = store.team.find(t => t.email === store.email);
+  if (mine) store.me = mine;
 }
 
 export async function signOut() {

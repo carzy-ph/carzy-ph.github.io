@@ -168,7 +168,6 @@ async function save() {
   if (admin.value && login) {
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(login)) return toast('Enter a valid portal login email.');
     const clash = store.team.find(t => t.email === login);
-    if (clash?.role === 'admin') return toast('That email is an admin login. Use a different email for the agent.');
     if (clash?.agent_id && clash.agent_id !== a.id) return toast(`That email is already linked to ${agentById(clash.agent_id)?.name ?? 'another agent'}.`);
   }
 
@@ -206,10 +205,23 @@ async function save() {
     if (res.error) throw res.error;
 
     if (admin.value) {
+      // Link the portal login. An admin's own email can be linked too: it keeps admin access and
+      // gains the agent portal, and unlinking it later never removes the admin.
       const current = store.team.find(t => t.agent_id === a.id);
       if (current?.email !== (login || undefined)) {
-        if (current) { const d = await supabase.from('team').delete().eq('email', current.email); if (d.error) throw d.error; }
-        if (login) { const i = await supabase.from('team').insert({ email: login, role: 'agent', agent_id: a.id }); if (i.error) throw i.error; }
+        if (current) {
+          const r = current.role === 'admin'
+            ? await supabase.from('team').update({ agent_id: null }).eq('email', current.email)
+            : await supabase.from('team').delete().eq('email', current.email);
+          if (r.error) throw r.error;
+        }
+        if (login) {
+          const existingAdmin = store.team.find(t => t.email === login && t.role === 'admin');
+          const r = existingAdmin
+            ? await supabase.from('team').update({ agent_id: a.id }).eq('email', login)
+            : await supabase.from('team').insert({ email: login, role: 'agent', agent_id: a.id });
+          if (r.error) throw r.error;
+        }
       }
     }
 
@@ -380,7 +392,7 @@ onBeforeRouteLeave(async () => {
           <div class="field">
             <label for="f-login">Portal login email (Google account)</label>
             <input id="f-login" v-model="loginEmail" class="inp" type="email" placeholder="agent@gmail.com" autocomplete="off">
-            <span class="hint">The agent signs in at <b>{{ agentPortalUrl }}</b> with this Google account to see their applications and edit their card. It must be a Gmail or Google Workspace address. Leave blank for no portal access.</span>
+            <span class="hint">The agent signs in at <b>{{ agentPortalUrl }}</b> with this Google account to see their applications and edit their card. It must be a Gmail or Google Workspace address. An admin can use their own email here too. Leave blank for no portal access.</span>
           </div>
         </section>
 

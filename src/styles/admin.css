@@ -194,3 +194,5 @@
 .slug-wrap.locked input{color:var(--ink);cursor:default}
 .link-check{grid-column:1/-1;font-size:12px;color:var(--muted);overflow-wrap:anywhere}
 .link-check.bad{color:var(--err)}
+.switch-area{white-space:nowrap}
+@media (max-width:480px){.who .chip{display:none}}

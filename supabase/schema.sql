@@ -143,9 +143,10 @@ language sql stable security definer set search_path = public as $$
   select exists (select 1 from team where email = my_email() and role = 'admin')
 $$;
 
+-- The agent card linked to this login. Admins can have one too (an admin who also sells).
 create or replace function public.my_agent_id() returns uuid
 language sql stable security definer set search_path = public as $$
-  select agent_id from team where email = my_email() and role = 'agent'
+  select agent_id from team where email = my_email()
 $$;
 
 create or replace function public.touch_updated_at() returns trigger
