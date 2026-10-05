@@ -199,3 +199,5 @@
 .nologin{font-size:12px;font-weight:600;color:var(--st-new)}
 .signin{border-top:1px solid var(--line);padding-top:12px}
 .slug-row>.inp{flex:1;min-width:0}
+.signin-line{margin:0;font-size:14px;overflow-wrap:anywhere}
+.signin{display:flex;flex-direction:column;gap:8px}

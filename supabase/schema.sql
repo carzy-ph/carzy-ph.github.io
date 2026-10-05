@@ -200,6 +200,43 @@ drop trigger if exists applications_guard on public.applications;
 create trigger applications_guard before update on public.applications
   for each row execute function public.guard_application_update();
 
+-- Portal sign-in is automatic: an agent without one signs in with their contact email.
+-- Runs when an admin (or the SQL editor) saves an agent; an agent changing their own contact email
+-- doesn't change who can sign in. An email already linked to another card is left alone; an admin's
+-- own email gets linked as well (an admin who also sells), keeping admin access.
+create or replace function public.link_agent_login(p_agent uuid, p_email text) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  v_email text := lower(trim(coalesce(p_email, '')));
+begin
+  if v_email = '' or v_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' then return; end if;
+  if exists (select 1 from team where agent_id = p_agent) then return; end if;
+  if exists (select 1 from team where email = v_email and agent_id is not null) then return; end if;
+  update team set agent_id = p_agent where email = v_email and role = 'admin' and agent_id is null;
+  if not found then
+    insert into team (email, role, agent_id) values (v_email, 'agent', p_agent)
+    on conflict (email) do nothing;
+  end if;
+end $$;
+
+create or replace function public.auto_link_agent_login() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if coalesce(auth.role(), '') <> 'authenticated' or public.is_admin() then
+    perform public.link_agent_login(new.id, new.email);
+  end if;
+  return new;
+end $$;
+drop trigger if exists agents_auto_login on public.agents;
+create trigger agents_auto_login after insert or update of email on public.agents
+  for each row execute function public.auto_link_agent_login();
+
+-- Existing agents without a sign-in get one from their contact email (safe to re-run).
+select public.link_agent_login(id, email) from public.agents
+where not exists (select 1 from public.team t where t.agent_id = agents.id);
+
+revoke execute on function public.link_agent_login(uuid, text) from public, anon, authenticated;
+
 -- ---------- Row level security ----------------------------------------
 
 alter table public.brands       enable row level security;

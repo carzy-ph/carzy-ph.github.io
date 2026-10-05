@@ -3,7 +3,7 @@
 // minus the fields the admin controls (the database enforces this too).
 import { computed, ref, watch } from 'vue';
 import { RouterLink, onBeforeRouteLeave, useRouter } from 'vue-router';
-import type { Agent, SocialType } from '@/types';
+import type { Agent, SocialType, TeamMember } from '@/types';
 import { cardUrl } from '@/config';
 import { SOCIAL, THEMES } from '@/lib/constants';
 import { initials, relTime } from '@/lib/format';
@@ -34,8 +34,8 @@ const origSlug = ref('');
 const slugTouched = ref(false);
 /** The card address is read-only until an admin chooses Customize. */
 const editingSlug = ref(false);
-/** Sign-in email follows the contact email for new agents until someone edits it. */
-const loginTouched = ref(false);
+/** Portal sign-in is the contact email unless an admin picks a different Google account. */
+const customLogin = ref(false);
 const photoFile = ref<File | null>(null);
 const photoPreview = ref<string | null>(null);
 const coverFile = ref<File | null>(null);
@@ -49,7 +49,8 @@ let leaving = false;
 const isNew = computed(() => !props.id);
 const agentPortalUrl = location.origin + areaUrl('agent');
 const admin = computed(() => isAdmin.value);
-const snapshot = () => JSON.stringify([draft.value, loginEmail.value]);
+const snapshot = () => JSON.stringify([draft.value, loginEmail.value, customLogin.value]);
+const effectiveLogin = computed(() => (customLogin.value ? loginEmail.value : draft.value.email).trim().toLowerCase());
 const dirty = computed(() => saved.value !== snapshot() || Boolean(photoFile.value) || Boolean(coverFile.value));
 const stats = computed(() => (props.id ? store.stats[props.id] : undefined));
 const color = computed(() => agentColor(draft.value));
@@ -80,7 +81,7 @@ function load() {
   origSlug.value = a?.slug ?? '';
   slugTouched.value = Boolean(a);
   editingSlug.value = false;
-  loginTouched.value = Boolean(a);
+  customLogin.value = Boolean(loginEmail.value && loginEmail.value !== (a?.email ?? '').trim().toLowerCase());
   if (photoPreview.value) URL.revokeObjectURL(photoPreview.value);
   photoFile.value = null;
   photoPreview.value = null;
@@ -105,9 +106,6 @@ function autoSlug(name: string): string {
   const base = candidates[candidates.length - 1] || 'agent';
   for (let n = 2; ; n++) if (!slugTaken(`${base}-${n}`)) return `${base}-${n}`;
 }
-watch(() => draft.value.email, e => {
-  if (isNew.value && !loginTouched.value) loginEmail.value = e.trim().toLowerCase();
-});
 watch(() => draft.value.name, n => {
   if (isNew.value && !slugTouched.value) draft.value.slug = autoSlug(n);
 });
@@ -165,7 +163,7 @@ async function copyLink() {
 
 async function save() {
   const a = draft.value;
-  const login = loginEmail.value.trim().toLowerCase();
+  const login = effectiveLogin.value;
   if (!a.name.trim()) return toast('Add the agent’s full name.');
   if (!/^[a-z0-9][a-z0-9-]{1,39}$/.test(a.slug)) return toast('Card address: 2–40 lowercase letters, numbers or dashes.');
   const brokenLink = a.links.find(l => (l.url.trim() || l.label.trim()) && !toLink(l.type, l.url) && !resolveLink(l));
@@ -211,9 +209,13 @@ async function save() {
     if (res.error) throw res.error;
 
     if (admin.value) {
-      // Link the portal login. An admin's own email can be linked too: it keeps admin access and
-      // gains the agent portal, and unlinking it later never removes the admin.
-      const current = store.team.find(t => t.agent_id === a.id);
+      // Link the portal login. Read the team list fresh: saving the agent may have just linked their
+      // contact email automatically (database trigger). An admin's own email can be linked too; it
+      // keeps admin access, and unlinking it later never removes the admin.
+      const fresh = await supabase.from('team').select('*');
+      if (fresh.error) throw fresh.error;
+      const team = (fresh.data ?? []) as TeamMember[];
+      const current = team.find(t => t.agent_id === a.id);
       if (current?.email !== (login || undefined)) {
         if (current) {
           const r = current.role === 'admin'
@@ -222,8 +224,8 @@ async function save() {
           if (r.error) throw r.error;
         }
         if (login) {
-          const existingAdmin = store.team.find(t => t.email === login && t.role === 'admin');
-          const r = existingAdmin
+          const owner = team.find(t => t.email === login);
+          const r = owner
             ? await supabase.from('team').update({ agent_id: a.id }).eq('email', login)
             : await supabase.from('team').insert({ email: login, role: 'agent', agent_id: a.id });
           if (r.error) throw r.error;
@@ -347,13 +349,20 @@ onBeforeRouteLeave(async () => {
             <div class="field"><label for="f-email">Email <span class="opt">(public)</span></label><input id="f-email" v-model="draft.email" class="inp" type="email"></div>
           </div>
           <div v-if="admin" class="field signin">
-            <label for="f-login">Portal sign-in (Google account) <span class="opt">(private)</span></label>
-            <div class="slug-row">
-              <input id="f-login" v-model="loginEmail" class="inp" type="email" placeholder="agent@gmail.com" autocomplete="off" @input="loginTouched = true">
-              <button v-if="draft.email.trim() && draft.email.trim().toLowerCase() !== loginEmail.trim().toLowerCase()" class="btn small" type="button" @click="loginEmail = draft.email.trim().toLowerCase(); loginTouched = true">Use the email above</button>
-            </div>
-            <span class="hint">The agent signs in at <b>{{ agentPortalUrl }}</b> with this Google account (Gmail or Google Workspace). It’s never shown on the card. An admin can use their own email too. Leave blank for no portal access.</span>
-            <span v-if="!loginEmail.trim()" class="warn">No sign-in yet: this agent can’t open the portal.</span>
+            <span class="lbl">Portal sign-in <span class="opt">(private)</span></span>
+            <template v-if="!customLogin">
+              <p v-if="effectiveLogin" class="signin-line">Signs in at <b>{{ agentPortalUrl }}</b> with <b>{{ effectiveLogin }}</b>, the email above, using Google.</p>
+              <p v-else class="warn signin-line">Add an email above to give this agent portal access.</p>
+              <button class="btn small" type="button" style="align-self:flex-start" @click="customLogin = true; loginEmail = loginEmail || ''">Use a different Google account</button>
+            </template>
+            <template v-else>
+              <div class="slug-row">
+                <input id="f-login" v-model="loginEmail" class="inp" type="email" placeholder="agent@gmail.com" autocomplete="off">
+                <button class="btn small" type="button" @click="customLogin = false">Use the email above</button>
+              </div>
+              <span class="hint">The agent signs in at <b>{{ agentPortalUrl }}</b> with this Google account instead. Leave it blank for no portal access.</span>
+            </template>
+            <span class="hint">Must be a Gmail or Google Workspace account. It’s never shown on the card.</span>
           </div>
         </section>
 
