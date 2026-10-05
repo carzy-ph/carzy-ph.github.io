@@ -18,7 +18,7 @@ const hasContact = Boolean(tel || d.facebook || d.email);
       <h1>{{ hasContact ? 'Our sales team is ready to help' : 'This card isn’t available' }}</h1>
       <p v-if="reason === 'off'">{{ agentName }} is no longer taking applications through this card.</p>
       <p v-else-if="reason === 'offline'">This card could not load right now. Please try again in a moment, or contact the showroom.</p>
-      <p v-else>This card link is not set up yet.</p>
+      <p v-else>This card isn’t active. The agent may have moved on, or the link isn’t set up yet.</p>
       <div v-if="hasContact" class="actions">
         <a v-if="tel" class="cta" :href="`tel:${tel}`">Call {{ d.phone }}</a>
         <a v-if="d.facebook" class="out" :href="safeUrl(d.facebook)" target="_blank" rel="noopener">Message us on Facebook</a>

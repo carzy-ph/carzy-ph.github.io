@@ -31,6 +31,8 @@ const draft = ref<Agent>(blankAgent());
 const loginEmail = ref('');
 const origSlug = ref('');
 const slugTouched = ref(false);
+/** The card address is read-only until an admin chooses Customize. */
+const editingSlug = ref(false);
 const photoFile = ref<File | null>(null);
 const photoPreview = ref<string | null>(null);
 const coverFile = ref<File | null>(null);
@@ -74,6 +76,7 @@ function load() {
   loginEmail.value = a ? store.team.find(t => t.agent_id === a.id)?.email ?? '' : '';
   origSlug.value = a?.slug ?? '';
   slugTouched.value = Boolean(a);
+  editingSlug.value = false;
   if (photoPreview.value) URL.revokeObjectURL(photoPreview.value);
   photoFile.value = null;
   photoPreview.value = null;
@@ -85,8 +88,21 @@ function load() {
 watch(() => props.id, load, { immediate: true });
 
 // New agents get a card address from their first name until the admin types one.
+// The card address is made automatically from the name and is always unique:
+// "marco", then "marco-villanueva", then "marco-villanueva-2", and so on.
+const slugTaken = (slug: string) => store.agents.some(x => x.slug === slug && x.id !== draft.value.id);
+function autoSlug(name: string): string {
+  const words = name.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+    .split(/[^a-z0-9]+/).filter(Boolean);
+  if (!words.length) return '';
+  const first = words[0]!, full = words.join('-').slice(0, 36).replace(/-+$/, '');
+  const candidates = [first, `${first}-${words[words.length - 1]}`, full].filter(c => c.length >= 2);
+  for (const c of candidates) if (!slugTaken(c)) return c;
+  const base = candidates[candidates.length - 1] || 'agent';
+  for (let n = 2; ; n++) if (!slugTaken(`${base}-${n}`)) return `${base}-${n}`;
+}
 watch(() => draft.value.name, n => {
-  if (isNew.value && !slugTouched.value) draft.value.slug = (n.trim().toLowerCase().split(/\s+/)[0] || '').replace(/[^a-z0-9-]/g, '');
+  if (isNew.value && !slugTouched.value) draft.value.slug = autoSlug(n);
 });
 
 function onSlug(e: Event) {
@@ -145,6 +161,7 @@ async function save() {
   const login = loginEmail.value.trim().toLowerCase();
   if (!a.name.trim()) return toast('Add the agent’s full name.');
   if (!/^[a-z0-9][a-z0-9-]{1,39}$/.test(a.slug)) return toast('Card address: 2–40 lowercase letters, numbers or dashes.');
+  if (slugTaken(a.slug)) return toast(`The card address “${a.slug}” is already used by another agent. Pick a different one.`);
   if (admin.value && login) {
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(login)) return toast('Enter a valid portal login email.');
     const clash = store.team.find(t => t.email === login);
@@ -260,6 +277,10 @@ onBeforeRouteLeave(async () => {
 
         <section class="block">
           <div class="block-h"><h2>Profile</h2></div>
+          <p class="public-note" role="note">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/></svg>
+            <span><b>This profile is public.</b> Everything below (photos, name, contact numbers, links) appears on the card page, which anyone with the link can open. The portal login email is never shown. Turning the card off hides the profile from the public.</span>
+          </p>
           <div class="photo-row">
             <span class="av" :style="previewAgent.photo_url ? { background: `${color} url('${previewAgent.photo_url}') center/cover` } : { background: color }">{{ previewAgent.photo_url ? '' : initials(draft.name) }}</span>
             <div style="display:flex;flex-direction:column;gap:4px">
@@ -358,12 +379,15 @@ onBeforeRouteLeave(async () => {
           <div class="block-h"><h2>NFC card link</h2><span v-if="!admin" class="lock">Set by admin</span></div>
           <div class="field">
             <label for="f-slug">Card address</label>
-            <div class="slug-wrap"><span>/cards/</span><input id="f-slug" :value="draft.slug" :readonly="!admin" autocomplete="off" spellcheck="false" placeholder="firstname" @input="onSlug"></div>
-            <span class="hint">2–40 lowercase letters, numbers or dashes.</span>
+            <div class="slug-row">
+              <div class="slug-wrap" :class="{ locked: !editingSlug }"><span>/cards/</span><input id="f-slug" :value="draft.slug" :readonly="!editingSlug" autocomplete="off" spellcheck="false" :placeholder="isNew ? 'made from the name' : ''" @input="onSlug"></div>
+              <button v-if="admin && !editingSlug" class="btn small" type="button" @click="editingSlug = true">Customize</button>
+            </div>
+            <span class="hint">{{ editingSlug ? '2–40 lowercase letters, numbers or dashes.' : isNew ? 'Created automatically from the name, and always unique.' : 'Fixed once the link is written to a card.' }}</span>
             <span v-if="slugChanged" class="warn">If this card is already written, changing the address breaks the link on the physical card.</span>
           </div>
           <div class="field">
-            <span class="lbl">Link to write on the card</span>
+            <span class="lbl">Link to write on the card <span class="opt">(public)</span></span>
             <div class="url-row"><input id="f-url" class="inp" readonly :value="nfcLink" aria-label="Card link"><button class="btn" :disabled="isNew" @click="copyLink">Copy</button></div>
           </div>
           <ol class="nfc-steps">

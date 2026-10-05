@@ -28,7 +28,8 @@ create table if not exists public.models (
   unique (brand_id, name)
 );
 
--- One row per agent. Everything here is shown on the public card page.
+-- One row per agent. Everything here is public on the agent's card page while the card is live.
+-- (Portal login emails live in `team`, which only admins can read.)
 create table if not exists public.agents (
   id          uuid primary key default gen_random_uuid(),
   slug        text not null unique check (slug ~ '^[a-z0-9][a-z0-9-]{1,39}$'),
@@ -219,10 +220,16 @@ create policy "Admins manage models" on public.models for all to authenticated
   using (public.is_admin()) with check (public.is_admin());
 
 drop policy if exists "Cards are public"              on public.agents;
+drop policy if exists "Live cards are public"         on public.agents;
+drop policy if exists "Team sees agent profiles"      on public.agents;
 drop policy if exists "Admins add agents"             on public.agents;
 drop policy if exists "Admins and owners edit agents" on public.agents;
 drop policy if exists "Admins delete agents"          on public.agents;
-create policy "Cards are public"              on public.agents for select using (true);
+-- Agent profiles are public while their card is live. A turned-off card (e.g. the agent left) is hidden
+-- from the public, so their phone and email stop being published; admins and the agent still see it.
+create policy "Live cards are public"         on public.agents for select using (active);
+create policy "Team sees agent profiles"      on public.agents for select to authenticated
+  using (public.is_admin() or id = public.my_agent_id());
 create policy "Admins add agents"             on public.agents for insert to authenticated with check (public.is_admin());
 create policy "Admins and owners edit agents" on public.agents for update to authenticated
   using (public.is_admin() or id = public.my_agent_id())

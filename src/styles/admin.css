@@ -185,3 +185,10 @@
 .brand-color{display:flex;gap:10px;align-items:center;margin:0;font-size:14px;color:var(--muted)}
 .brand-color .dot{flex:none;width:28px;height:28px;border-radius:8px}
 .brand-tag{font-family:var(--body);font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:2px 9px;margin-left:4px}
+.public-note{display:flex;gap:10px;align-items:flex-start;margin:0;padding:10px 12px;border-radius:10px;background:color-mix(in srgb,var(--st-contacted) 10%,transparent);border:1px solid color-mix(in srgb,var(--st-contacted) 35%,transparent);font-size:13px;color:var(--ink)}
+.public-note svg{flex:none;margin-top:2px;color:var(--st-contacted)}
+.opt{font-weight:400;color:var(--muted)}
+.slug-row{display:flex;gap:8px;align-items:center}
+.slug-row .slug-wrap{flex:1;min-width:0}
+.slug-wrap.locked{background:transparent}
+.slug-wrap.locked input{color:var(--ink);cursor:default}
