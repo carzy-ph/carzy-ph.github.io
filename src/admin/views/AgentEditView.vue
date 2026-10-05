@@ -9,6 +9,7 @@ import { SOCIAL, THEMES } from '@/lib/constants';
 import { initials, relTime } from '@/lib/format';
 import { COVER, PHOTO_ACCEPT, PHOTO_HINT, PROFILE, checkPhoto, optimizePhoto, photoPath } from '@/lib/image';
 import { catalogFor } from '@/lib/catalog';
+import { LINK_HINT, resolveLink, toLink } from '@/lib/links';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/lib/toast';
 import { confirmDialog } from '@/lib/confirm';
@@ -161,6 +162,8 @@ async function save() {
   const login = loginEmail.value.trim().toLowerCase();
   if (!a.name.trim()) return toast('Add the agent’s full name.');
   if (!/^[a-z0-9][a-z0-9-]{1,39}$/.test(a.slug)) return toast('Card address: 2–40 lowercase letters, numbers or dashes.');
+  const brokenLink = a.links.find(l => (l.url.trim() || l.label.trim()) && !toLink(l.type, l.url) && !resolveLink(l));
+  if (brokenLink) return toast(`Add the ${SOCIAL[brokenLink.type].name} link, handle or number, or remove that row.`);
   if (slugTaken(a.slug)) return toast(`The card address “${a.slug}” is already used by another agent. Pick a different one.`);
   if (admin.value && login) {
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(login)) return toast('Enter a valid portal login email.');
@@ -188,7 +191,10 @@ async function save() {
     const own = {
       name: a.name.trim(), title: a.title.trim(), hours: a.hours.trim(), phone: a.phone.trim(), email: a.email.trim(),
       photo_url: a.photo_url, cover_url: a.cover_url, theme: a.theme,
-      links: a.links.filter(l => l.url.trim() || l.label.trim()).map(l => ({ type: l.type, label: l.label.trim(), url: l.url.trim() })),
+      links: a.links.flatMap(l => {
+        const url = toLink(l.type, l.url) || resolveLink(l)?.url || '';
+        return url ? [{ type: l.type, label: l.url.trim() ? l.label.trim() : (resolveLink(l)?.text ?? ''), url }] : [];
+      }),
       stats: a.stats.map(s => ({ v: s.v.trim(), l: s.l.trim() }))
     };
     const row = admin.value
@@ -331,8 +337,11 @@ onBeforeRouteLeave(async () => {
               <span class="gl" :style="{ background: SOCIAL[l.type].color }">{{ SOCIAL[l.type].glyph }}</span>
               <div class="fields">
                 <SelectMenu :id="`l-t${i}`" v-model="l.type" :options="platformOptions" aria-label="Platform" />
-                <input :id="`l-l${i}`" v-model="l.label" class="inp" placeholder="Short line, e.g. @handle or 0917 123 4567" aria-label="Label">
-                <input :id="`l-u${i}`" v-model="l.url" class="inp url" placeholder="https://… or viber://chat?number=%2B639171234567" aria-label="Link">
+                <input :id="`l-u${i}`" v-model="l.url" class="inp" :placeholder="LINK_HINT[l.type]" aria-label="Link, handle or number" autocomplete="off" spellcheck="false" @blur="l.url = toLink(l.type, l.url) || l.url.trim()">
+                <input :id="`l-l${i}`" v-model="l.label" class="inp url" placeholder="Text on the card (optional), e.g. Latest units & promos" aria-label="Text on the card">
+                <span class="link-check" :class="{ bad: Boolean(l.url.trim()) && !toLink(l.type, l.url) }">
+                  {{ !l.url.trim() ? 'Add the link, handle or number above.' : toLink(l.type, l.url) ? `Opens ${toLink(l.type, l.url).replace(/^https?:\/\//, '')}` : 'That doesn’t look like a link for this platform.' }}
+                </span>
               </div>
               <div class="ctl">
                 <button class="btn icon" :disabled="i === 0" aria-label="Move up" @click="moveLink(i, -1)">↑</button>

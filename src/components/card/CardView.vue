@@ -6,6 +6,7 @@ import type { Agent, ApplicationInput, Catalog, Source } from '@/types';
 import { SOCIAL } from '@/lib/constants';
 import { initials, safeUrl, toIntl } from '@/lib/format';
 import { saveContact } from '@/lib/vcard';
+import { resolveLink } from '@/lib/links';
 import { cardColor } from '@/lib/catalog';
 import ApplicationForm from './ApplicationForm.vue';
 import ThemeToggle from '../ThemeToggle.vue';
@@ -25,7 +26,11 @@ const tel = computed(() => toIntl(a.value.phone));
 // A highlight shows only once it has a number; a label alone looks broken.
 const stats = computed(() => (a.value.stats || []).filter(s => s && s.v?.trim()));
 const heroStyle = computed(() => (a.value.cover_url ? { '--cover': `url('${a.value.cover_url}')` } : undefined));
-const links = computed(() => (a.value.links || []).filter(l => SOCIAL[l.type] && (l.url || (props.preview && l.label))));
+// Each link resolved to a working address and display text; incomplete links are left off the card.
+const links = computed(() => (a.value.links || []).flatMap(l => {
+  const r = SOCIAL[l.type] ? resolveLink(l) : null;
+  return r ? [{ type: l.type, ...r }] : [];
+}));
 const color = computed(() => cardColor(a.value, props.catalog.brands));
 const brandName = computed(() => props.catalog.brands.find(b => b.id === a.value.brand_id)?.name);
 const dealerLine = computed(() => [brandName.value, a.value.dealership, a.value.branch].filter(Boolean).join(' · '));
@@ -86,7 +91,7 @@ function blockLinksInPreview(e: MouseEvent) {
         <li v-for="(l, i) in links" :key="i">
           <a :href="safeUrl(l.url)" target="_blank" rel="noopener">
             <span class="badge" :style="{ background: SOCIAL[l.type].color }">{{ SOCIAL[l.type].glyph }}</span>
-            <span class="txt"><b>{{ SOCIAL[l.type].name }}</b><span v-if="l.label">{{ l.label }}</span></span>
+            <span class="txt"><b>{{ SOCIAL[l.type].name }}</b><span v-if="l.text">{{ l.text }}</span></span>
             <span class="arr" aria-hidden="true">›</span>
           </a>
         </li>
