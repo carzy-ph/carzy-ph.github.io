@@ -37,17 +37,51 @@ async function callUpload<T>(body: Record<string, unknown>): Promise<T> {
   return data;
 }
 
-export async function uploadDocument(o: { ref: string; token: string; type: string; file: File }) {
+export type UploadPhase = 'preparing' | 'uploading' | 'saving';
+
+/** Sends the file to Google with progress (fetch can't report upload progress; XHR can). */
+function putWithProgress(url: string, blob: Blob, mime: string, onPct: (f: number) => void, signal?: AbortSignal) {
+  return new Promise<{ id: string }>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', url);
+    xhr.setRequestHeader('Content-Type', mime);
+    xhr.upload.onprogress = e => { if (e.lengthComputable) onPct(e.loaded / e.total); };
+    xhr.onload = () => {
+      if (xhr.status < 200 || xhr.status >= 300) return reject(new Error('Google Drive didn’t accept that file. Try again.'));
+      try { resolve(JSON.parse(xhr.responseText)); } catch { reject(new Error('Google Drive didn’t confirm the upload. Try again.')); }
+    };
+    xhr.onerror = () => reject(new Error('The upload was interrupted. Check your connection and try again.'));
+    xhr.onabort = () => reject(new DOMException('Upload cancelled', 'AbortError'));
+    if (signal) {
+      if (signal.aborted) { reject(new DOMException('Upload cancelled', 'AbortError')); return; }
+      signal.addEventListener('abort', () => xhr.abort(), { once: true });
+    }
+    xhr.send(blob);
+  });
+}
+
+/**
+ * Uploads one requirement. `onProgress` reports the stage and overall progress (0–1):
+ * preparing (shrinking a photo, opening the upload), uploading (to Google), saving (recording it).
+ */
+export async function uploadDocument(o: {
+  ref: string; token: string; type: string; file: File;
+  onProgress?: (phase: UploadPhase, fraction: number) => void; signal?: AbortSignal;
+}) {
+  const report = o.onProgress ?? (() => {});
+  report('preparing', 0);
   const blob = await shrinkPhoto(o.file);
   const mime = blob.type || o.file.type;
   const name = blob === o.file ? o.file.name : o.file.name.replace(/\.[^.]+$/, '') + '.jpg';
+  if (o.signal?.aborted) throw new DOMException('Upload cancelled', 'AbortError');
   const { upload_url } = await callUpload<{ upload_url: string }>({
     action: 'start', ref: o.ref, token: o.token, type: o.type, name, mime, size: blob.size
   });
+  report('uploading', 0.05);
   // Straight to Google Drive (the one-time address only accepts this file).
-  const put = await fetch(upload_url, { method: 'PUT', headers: { 'Content-Type': mime }, body: blob })
-    .catch(() => { throw new Error('The upload was interrupted. Check your connection and try again.'); });
-  if (!put.ok) throw new Error('Google Drive didn’t accept that file. Try again.');
-  const { id } = await put.json() as { id: string };
-  return callUpload<{ name: string; count: number }>({ action: 'finish', ref: o.ref, token: o.token, type: o.type, file_id: id });
+  const { id } = await putWithProgress(upload_url, blob, mime, f => report('uploading', 0.05 + f * 0.9), o.signal);
+  report('saving', 0.97);
+  const done = await callUpload<{ name: string; count: number }>({ action: 'finish', ref: o.ref, token: o.token, type: o.type, file_id: id });
+  report('saving', 1);
+  return done;
 }
