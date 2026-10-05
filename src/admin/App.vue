@@ -3,6 +3,7 @@ import { watch } from 'vue';
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router';
 import { isAdmin, myAgent, newCount, signOut, store } from './store';
 import { toastMessage } from '@/lib/toast';
+import { CONFIG } from '@/config';
 import LoginView from './views/LoginView.vue';
 import ThemeToggle from '@/components/ThemeToggle.vue';
 import ConfirmDialog from '@/components/ConfirmDialog.vue';
@@ -27,7 +28,7 @@ const tabs = () => isAdmin.value
   <header class="top">
     <div class="brand">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M14 10a3 3 0 0 1 0 4M16.5 8.5a6 6 0 0 1 0 7"/></svg>
-      {{ store.area === 'admin' ? 'Card Admin' : 'Agent Portal' }}
+      {{ CONFIG.brand }} <span class="brand-tag">{{ store.area === 'admin' ? 'Admin' : 'Agent Portal' }}</span>
     </div>
     <div class="who">
       <ThemeToggle />

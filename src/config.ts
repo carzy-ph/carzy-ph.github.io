@@ -1,16 +1,17 @@
 // Supabase connection comes from .env.local (locally) or the repo's Actions variables (on deploy).
-// The dealership contact below is shown when a card is turned off or not found: edit it here.
+// Brand name and the contact shown when a card is turned off or not found: edit them here.
 export const CONFIG = {
   supabaseUrl: import.meta.env.VITE_SUPABASE_URL ?? '',
   supabaseKey: import.meta.env.VITE_SUPABASE_KEY ?? '',
   /** Google OAuth "Web application" client ID. When set, the portal shows Google's own sign-in button,
    *  so Google's screen names this site instead of the Supabase address. Public by design. */
   googleClientId: import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '',
-  dealership: {
-    name: 'Sample Motors',
-    phone: '0917 000 0000',
-    email: 'sales@example.com',
-    facebook: 'https://facebook.com/'
+  brand: 'Carzy',
+  /** Contact on the "card is off / not found" page. Leave a field empty to hide it. */
+  support: {
+    phone: '',
+    email: '',
+    facebook: ''
   }
 };
 

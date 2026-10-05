@@ -3,7 +3,7 @@
 // Supabase is paused), then loads the latest profile so admin edits appear immediately.
 import { onMounted, ref, watchEffect } from 'vue';
 import type { Agent, ApplicationInput, Brand, Catalog, Source, UnitModel } from '@/types';
-import { isConfigured } from '@/config';
+import { CONFIG, isConfigured } from '@/config';
 import { rest, rpc } from '@/lib/rest';
 import { catalogFor, emptyCatalog } from '@/lib/catalog';
 import CardView from '@/components/card/CardView.vue';
@@ -26,7 +26,7 @@ const state = ref<'loading' | 'ready' | 'missing' | 'offline'>(snapshot ? 'ready
 
 watchEffect(() => {
   const a = agent.value;
-  document.title = a?.active ? `${a.name} · ${a.title || 'Sales Consultant'}` : 'Agent card';
+  document.title = a?.active ? `${a.name} · ${a.title || 'Sales Consultant'}` : CONFIG.brand;
 });
 
 async function refresh() {

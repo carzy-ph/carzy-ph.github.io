@@ -5,20 +5,21 @@ import { safeUrl, toIntl } from '@/lib/format';
 import ThemeToggle from '../ThemeToggle.vue';
 
 defineProps<{ agentName?: string; reason: 'off' | 'missing' | 'offline' }>();
-const d = CONFIG.dealership;
+const d = CONFIG.support;
 const tel = toIntl(d.phone);
+const hasContact = Boolean(tel || d.facebook || d.email);
 </script>
 
 <template>
   <div class="wrap">
     <div class="top-row"><ThemeToggle /></div>
     <section class="fallback">
-      <span class="eyebrow">{{ d.name }}</span>
-      <h1>Our sales team is ready to help</h1>
+      <span class="eyebrow">{{ CONFIG.brand }}</span>
+      <h1>{{ hasContact ? 'Our sales team is ready to help' : 'This card isn’t available' }}</h1>
       <p v-if="reason === 'off'">{{ agentName }} is no longer taking applications through this card.</p>
       <p v-else-if="reason === 'offline'">This card could not load right now. Please try again in a moment, or contact the showroom.</p>
       <p v-else>This card link is not set up yet.</p>
-      <div class="actions">
+      <div v-if="hasContact" class="actions">
         <a v-if="tel" class="cta" :href="`tel:${tel}`">Call {{ d.phone }}</a>
         <a v-if="d.facebook" class="out" :href="safeUrl(d.facebook)" target="_blank" rel="noopener">Message us on Facebook</a>
         <a v-if="d.email" class="out" :href="`mailto:${d.email}`">{{ d.email }}</a>

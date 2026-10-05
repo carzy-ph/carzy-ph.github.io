@@ -27,7 +27,7 @@ const list = computed(() => {
 <template>
   <section class="page">
     <div class="page-head">
-      <div><span class="eyebrow">{{ CONFIG.dealership.name }}</span><h1>Agents</h1></div>
+      <div><span class="eyebrow">{{ CONFIG.brand }}</span><h1>Agents</h1></div>
       <RouterLink class="btn primary" to="/agents/new">+ Add agent</RouterLink>
     </div>
 

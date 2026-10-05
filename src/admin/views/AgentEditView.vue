@@ -4,7 +4,7 @@
 import { computed, ref, watch } from 'vue';
 import { RouterLink, onBeforeRouteLeave, useRouter } from 'vue-router';
 import type { Agent, SocialType } from '@/types';
-import { CONFIG, cardUrl } from '@/config';
+import { cardUrl } from '@/config';
 import { SOCIAL, THEMES } from '@/lib/constants';
 import { initials, relTime } from '@/lib/format';
 import { COVER, PHOTO_ACCEPT, PHOTO_HINT, PROFILE, checkPhoto, optimizePhoto, photoPath } from '@/lib/image';
@@ -21,7 +21,7 @@ const router = useRouter();
 
 const blankAgent = (): Agent => ({
   id: crypto.randomUUID(), slug: '', brand_id: null, name: '', title: 'Sales Consultant',
-  dealership: CONFIG.dealership.name, branch: '', hours: 'Available · 9AM–6PM', phone: '', email: '',
+  dealership: '', branch: '', hours: 'Available · 9AM–6PM', phone: '', email: '',
   photo_url: null, cover_url: null, theme: THEMES[store.agents.length % THEMES.length]!.color, active: true,
   links: [{ type: 'facebook', label: '', url: '' }, { type: 'viber', label: '', url: '' }],
   stats: [{ v: '', l: 'Yrs selling' }, { v: '', l: 'Units released' }, { v: '', l: 'Client rating' }]
@@ -283,8 +283,8 @@ onBeforeRouteLeave(async () => {
           <div class="grid2">
             <div class="field"><label for="f-name">Full name</label><input id="f-name" v-model="draft.name" class="inp" autocomplete="off"></div>
             <div class="field"><label for="f-title">Title</label><input id="f-title" v-model="draft.title" class="inp"></div>
-            <div class="field"><label for="f-dealership">Dealership</label><input id="f-dealership" v-model="draft.dealership" class="inp" :readonly="!admin"></div>
-            <div class="field"><label for="f-branch">Branch</label><input id="f-branch" v-model="draft.branch" class="inp" :readonly="!admin"></div>
+            <div class="field"><label for="f-dealership">Dealership</label><input id="f-dealership" v-model="draft.dealership" class="inp" :readonly="!admin" placeholder="e.g. Toyota Quezon Avenue"></div>
+            <div class="field"><label for="f-branch">Branch</label><input id="f-branch" v-model="draft.branch" class="inp" :readonly="!admin" placeholder="e.g. Quezon City"></div>
           </div>
           <div class="field">
             <label for="f-brand">Brand</label>

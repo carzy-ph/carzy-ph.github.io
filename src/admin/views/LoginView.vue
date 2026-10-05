@@ -58,7 +58,7 @@ async function google() {
 
 <template>
   <section class="login">
-    <span class="eyebrow">{{ CONFIG.dealership.name }}</span>
+    <span class="eyebrow">{{ CONFIG.brand }}</span>
     <h1>{{ store.area === 'admin' ? 'Admin sign in' : 'Agent sign in' }}</h1>
 
     <p v-if="store.authError" class="auth-error" role="alert">Sign-in didn’t finish: {{ store.authError }}</p>

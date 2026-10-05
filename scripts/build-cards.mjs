@@ -59,7 +59,7 @@ function page({ title, description, image, theme, snapshot }) {
   ].filter(Boolean).join('\n');
   return template
     .replace('<!--META-->', meta)
-    .replace('<title>Agent card</title>', `<title>${attr(title)}</title>`)
+    .replace('<title>Carzy</title>', `<title>${attr(title)}</title>`)
     .replace('<meta name="theme-color" content="#0F4C5C">', `<meta name="theme-color" content="${attr(theme)}">`)
     .replace('<!--SNAPSHOT-->', snapshot ? `<script id="agent-snapshot" type="application/json">${json(snapshot)}</script>` : '');
 }
@@ -71,8 +71,8 @@ for (const a of agents) {
   await mkdir(dir, { recursive: true });
   const where = [a.dealership, a.branch].filter(Boolean).join(', ');
   await writeFile(new URL('index.html', dir), page({
-    title: a.active ? `${a.name} · ${a.title}` : a.dealership || 'Agent card',
-    description: a.active ? `${a.title} at ${where}. Call, message, or apply for your car loan online.` : `Contact ${a.dealership}.`,
+    title: a.active ? `${a.name} · ${a.title}` : 'Carzy',
+    description: a.active ? `${a.title}${where ? ` at ${where}` : ''}. Call, message, or apply for your car loan online.` : 'This card isn’t available.',
     image: a.active ? a.photo_url : null,
     // Same rule as cardColor() in src/lib/catalog.ts.
     theme: brands.find(b => b.id === a.brand_id)?.color || a.theme,
@@ -81,7 +81,7 @@ for (const a of agents) {
 }
 
 await writeFile(new URL('404.html', dist), page({
-  title: 'Agent card', description: 'Car dealer agent card.', image: null, theme: '#0F4C5C', snapshot: null
+  title: 'Carzy', description: 'Carzy agent card.', image: null, theme: '#0F4C5C', snapshot: null
 }));
 
 console.log(`Built ${agents.length} card page(s)${sample ? ' from sample data' : ''}.`);
