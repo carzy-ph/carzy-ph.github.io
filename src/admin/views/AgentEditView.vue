@@ -7,7 +7,7 @@ import type { Agent, SocialType } from '@/types';
 import { CONFIG, cardUrl } from '@/config';
 import { SOCIAL, THEMES } from '@/lib/constants';
 import { initials, relTime } from '@/lib/format';
-import { coverJpeg, squareJpeg } from '@/lib/image';
+import { COVER, PHOTO_ACCEPT, PHOTO_HINT, PROFILE, checkPhoto, optimizePhoto, photoPath } from '@/lib/image';
 import { catalogFor } from '@/lib/catalog';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/lib/toast';
@@ -96,8 +96,19 @@ function onSlug(e: Event) {
   slugTouched.value = true;
 }
 
+/** Validates a picked photo; clears the file input either way so picking the same file again still works. */
+function pickPhoto(e: Event): File | null {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0] ?? null;
+  input.value = '';
+  if (!file) return null;
+  const problem = checkPhoto(file);
+  if (problem) { toast(problem); return null; }
+  return file;
+}
+
 function onPhoto(e: Event) {
-  const file = (e.target as HTMLInputElement).files?.[0];
+  const file = pickPhoto(e);
   if (!file) return;
   if (photoPreview.value) URL.revokeObjectURL(photoPreview.value);
   photoFile.value = file;
@@ -105,7 +116,7 @@ function onPhoto(e: Event) {
 }
 
 function onCover(e: Event) {
-  const file = (e.target as HTMLInputElement).files?.[0];
+  const file = pickPhoto(e);
   if (!file) return;
   if (coverPreview.value) URL.revokeObjectURL(coverPreview.value);
   coverFile.value = file;
@@ -142,19 +153,21 @@ async function save() {
   }
 
   saving.value = true;
+  const bucket = supabase.storage.from('agent-photos');
+  const before = agentById(a.id);
+  const uploaded: string[] = [];
+  // Unique file names never change, so browsers and Supabase's CDN can keep them for a year.
+  const upload = async (file: File, target: typeof PROFILE, prefix: string) => {
+    const { blob, ext } = await optimizePhoto(file, target);
+    const path = `${a.id}/${prefix}${Date.now()}.${ext}`;
+    const up = await bucket.upload(path, blob, { contentType: blob.type, cacheControl: '31536000', upsert: false });
+    if (up.error) throw up.error;
+    uploaded.push(path);
+    return bucket.getPublicUrl(path).data.publicUrl;
+  };
   try {
-    if (photoFile.value) {
-      const path = `${a.id}/${Date.now()}.jpg`;
-      const up = await supabase.storage.from('agent-photos').upload(path, await squareJpeg(photoFile.value), { contentType: 'image/jpeg' });
-      if (up.error) throw up.error;
-      a.photo_url = supabase.storage.from('agent-photos').getPublicUrl(path).data.publicUrl;
-    }
-    if (coverFile.value) {
-      const path = `${a.id}/cover-${Date.now()}.jpg`;
-      const up = await supabase.storage.from('agent-photos').upload(path, await coverJpeg(coverFile.value), { contentType: 'image/jpeg' });
-      if (up.error) throw up.error;
-      a.cover_url = supabase.storage.from('agent-photos').getPublicUrl(path).data.publicUrl;
-    }
+    if (photoFile.value) a.photo_url = await upload(photoFile.value, PROFILE, '');
+    if (coverFile.value) a.cover_url = await upload(coverFile.value, COVER, 'cover-');
     const own = {
       name: a.name.trim(), title: a.title.trim(), hours: a.hours.trim(), phone: a.phone.trim(), email: a.email.trim(),
       photo_url: a.photo_url, cover_url: a.cover_url, theme: a.theme,
@@ -177,6 +190,12 @@ async function save() {
       }
     }
 
+    // Delete photos this save replaced or removed, so storage only holds what cards use.
+    const stale = [before?.photo_url, before?.cover_url]
+      .filter(u => u && u !== a.photo_url && u !== a.cover_url)
+      .map(photoPath).filter((p): p is string => Boolean(p));
+    if (stale.length) await bucket.remove(stale); // best effort: a leftover file doesn't affect the card
+
     await loadAll();
     if (isNew.value) {
       leaving = true;
@@ -188,6 +207,7 @@ async function save() {
       toast('Saved. The card shows your changes right away.');
     }
   } catch (e) {
+    if (uploaded.length) await bucket.remove(uploaded); // don't keep photos from a save that failed
     toast(friendly(e));
   } finally {
     saving.value = false;
@@ -244,8 +264,8 @@ onBeforeRouteLeave(async () => {
             <span class="av" :style="previewAgent.photo_url ? { background: `${color} url('${previewAgent.photo_url}') center/cover` } : { background: color }">{{ previewAgent.photo_url ? '' : initials(draft.name) }}</span>
             <div style="display:flex;flex-direction:column;gap:4px">
               <label class="btn small" for="photo" style="cursor:pointer">{{ previewAgent.photo_url ? 'Change photo' : 'Upload photo' }}</label>
-              <input id="photo" type="file" accept="image/*" hidden @change="onPhoto">
-              <span class="hint">Cropped to a square and resized automatically</span>
+              <input id="photo" type="file" :accept="PHOTO_ACCEPT" hidden @change="onPhoto">
+              <span class="hint">Cropped to a square. {{ PHOTO_HINT }}</span>
             </div>
           </div>
           <div class="field">
@@ -255,10 +275,10 @@ onBeforeRouteLeave(async () => {
             </div>
             <div style="display:flex;gap:8px;flex-wrap:wrap">
               <label class="btn small" for="cover" style="cursor:pointer">{{ previewAgent.cover_url ? 'Change cover' : 'Upload cover' }}</label>
-              <input id="cover" type="file" accept="image/*" hidden @change="onCover">
+              <input id="cover" type="file" :accept="PHOTO_ACCEPT" hidden @change="onCover">
               <button v-if="previewAgent.cover_url" class="btn small" type="button" @click="removeCover">Remove</button>
             </div>
-            <span class="hint">A landscape photo of a car or the showroom, shown behind the name. It fades to black behind the name so the text stays readable.</span>
+            <span class="hint">A landscape photo of a car or the showroom, shown behind the name. It fades to black behind the name so the text stays readable. {{ PHOTO_HINT }}</span>
           </div>
           <div class="grid2">
             <div class="field"><label for="f-name">Full name</label><input id="f-name" v-model="draft.name" class="inp" autocomplete="off"></div>

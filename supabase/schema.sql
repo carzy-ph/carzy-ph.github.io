@@ -414,13 +414,32 @@ grant execute on function public.agent_stats()                         to authen
 
 -- ---------- Photo storage ----------------------------------------------
 
-insert into storage.buckets (id, name, public)
-values ('agent-photos', 'agent-photos', true)
-on conflict (id) do nothing;
+-- Public bucket for agent photos and covers. The portal shrinks photos to WebP/JPEG before upload
+-- (usually under 300 KB); these limits stop anything else from being stored.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('agent-photos', 'agent-photos', true, 1048576, array['image/webp', 'image/jpeg', 'image/png'])
+on conflict (id) do update
+  set public = true,
+      file_size_limit = excluded.file_size_limit,
+      allowed_mime_types = excluded.allowed_mime_types;
 
+-- Admins manage every photo; agents only the files in their own folder (agent-photos/<agent id>/…).
 drop policy if exists "Team uploads agent photos" on storage.objects;
+drop policy if exists "Team reads agent photo files" on storage.objects;
+drop policy if exists "Team deletes agent photos" on storage.objects;
 create policy "Team uploads agent photos" on storage.objects for insert to authenticated
   with check (
+    bucket_id = 'agent-photos'
+    and (public.is_admin() or (storage.foldername(name))[1] = public.my_agent_id()::text)
+  );
+-- Needed (with delete) so the portal can remove photos that were replaced.
+create policy "Team reads agent photo files" on storage.objects for select to authenticated
+  using (
+    bucket_id = 'agent-photos'
+    and (public.is_admin() or (storage.foldername(name))[1] = public.my_agent_id()::text)
+  );
+create policy "Team deletes agent photos" on storage.objects for delete to authenticated
+  using (
     bucket_id = 'agent-photos'
     and (public.is_admin() or (storage.foldername(name))[1] = public.my_agent_id()::text)
   );
