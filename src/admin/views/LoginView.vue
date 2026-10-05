@@ -86,6 +86,7 @@ async function google() {
         </button>
       </div>
     </template>
+    <a class="privacy-link" href="../privacy/" target="_blank" rel="noopener">Privacy Policy</a>
   </section>
 </template>
 
@@ -97,5 +98,6 @@ async function google() {
 /* Google's button is a light-themed embedded frame. In dark mode the browser would paint it an opaque
    white box; declaring it light lets it stay transparent so only the button itself shows. */
 .gis-slot :deep(iframe) { color-scheme: light; }
+.privacy-link { align-self: flex-start; font-size: 13px; color: var(--muted); margin-top: 8px; }
 .auth-error { margin: 0; padding: 10px 12px; border: 1px solid var(--err); border-radius: 10px; color: var(--err); font-size: 14px; }
 </style>

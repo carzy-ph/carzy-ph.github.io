@@ -113,6 +113,7 @@ function blockLinksInPreview(e: MouseEvent) {
     <footer>
       <span>{{ agent.dealership }}</span>
       <span class="eyebrow">Tap my card on any phone to open this page</span>
+      <a v-if="!preview" class="privacy" href="../../privacy/" target="_blank" rel="noopener">Privacy Policy</a>
     </footer>
 
     <div class="bar"><div class="bar-in">
@@ -187,6 +188,7 @@ function blockLinksInPreview(e: MouseEvent) {
 
 .form-card { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 18px 16px; }
 
+footer .privacy { color: var(--muted); }
 footer { text-align: center; font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
 
 .bar { position: fixed; left: 0; right: 0; bottom: 0; padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)); background: var(--surface); border-top: 1px solid var(--line); z-index: 5; }

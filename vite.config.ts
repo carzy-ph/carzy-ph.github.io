@@ -17,7 +17,7 @@ export default defineConfig({
       name: 'trailing-slash',
       configureServer(server) {
         server.middlewares.use((req, res, next) => {
-          const m = req.url?.match(/^\/(admin|portal)(\?.*)?$/);
+          const m = req.url?.match(/^\/(admin|portal|privacy)(\?.*)?$/);
           if (!m) return next();
           res.statusCode = 301;
           res.setHeader('Location', `/${m[1]}/` + (m[2] ?? ''));
@@ -33,7 +33,8 @@ export default defineConfig({
         main: page('./index.html'),
         card: page('./card.html'),
         admin: page('./admin/index.html'),
-        portal: page('./portal/index.html')
+        portal: page('./portal/index.html'),
+        privacy: page('./privacy/index.html')
       }
     }
   }
