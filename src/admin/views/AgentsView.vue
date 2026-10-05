@@ -52,6 +52,7 @@ const list = computed(() => {
           <span class="side">
             <StatusPill v-if="a.active" label="Live" css-var="--st-released" />
             <StatusPill v-else label="Off" css-var="--st-declined" />
+            <span v-if="!store.team.some(t => t.agent_id === a.id)" class="nologin">No sign-in</span>
             <span v-if="Number(store.stats[a.id]?.new_applications)" class="newcount">{{ store.stats[a.id]?.new_applications }} new</span>
           </span>
         </RouterLink>

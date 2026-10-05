@@ -34,6 +34,8 @@ const origSlug = ref('');
 const slugTouched = ref(false);
 /** The card address is read-only until an admin chooses Customize. */
 const editingSlug = ref(false);
+/** Sign-in email follows the contact email for new agents until someone edits it. */
+const loginTouched = ref(false);
 const photoFile = ref<File | null>(null);
 const photoPreview = ref<string | null>(null);
 const coverFile = ref<File | null>(null);
@@ -78,6 +80,7 @@ function load() {
   origSlug.value = a?.slug ?? '';
   slugTouched.value = Boolean(a);
   editingSlug.value = false;
+  loginTouched.value = Boolean(a);
   if (photoPreview.value) URL.revokeObjectURL(photoPreview.value);
   photoFile.value = null;
   photoPreview.value = null;
@@ -102,6 +105,9 @@ function autoSlug(name: string): string {
   const base = candidates[candidates.length - 1] || 'agent';
   for (let n = 2; ; n++) if (!slugTaken(`${base}-${n}`)) return `${base}-${n}`;
 }
+watch(() => draft.value.email, e => {
+  if (isNew.value && !loginTouched.value) loginEmail.value = e.trim().toLowerCase();
+});
 watch(() => draft.value.name, n => {
   if (isNew.value && !slugTouched.value) draft.value.slug = autoSlug(n);
 });
@@ -338,7 +344,16 @@ onBeforeRouteLeave(async () => {
           <div class="block-h"><h2>Contact</h2><span class="hint">Used by Call, Text, Email and Save contact</span></div>
           <div class="grid2">
             <div class="field"><label for="f-phone">Mobile</label><input id="f-phone" v-model="draft.phone" class="inp" type="tel" placeholder="0917 123 4567"></div>
-            <div class="field"><label for="f-email">Email</label><input id="f-email" v-model="draft.email" class="inp" type="email"></div>
+            <div class="field"><label for="f-email">Email <span class="opt">(public)</span></label><input id="f-email" v-model="draft.email" class="inp" type="email"></div>
+          </div>
+          <div v-if="admin" class="field signin">
+            <label for="f-login">Portal sign-in (Google account) <span class="opt">(private)</span></label>
+            <div class="slug-row">
+              <input id="f-login" v-model="loginEmail" class="inp" type="email" placeholder="agent@gmail.com" autocomplete="off" @input="loginTouched = true">
+              <button v-if="draft.email.trim() && draft.email.trim().toLowerCase() !== loginEmail.trim().toLowerCase()" class="btn small" type="button" @click="loginEmail = draft.email.trim().toLowerCase(); loginTouched = true">Use the email above</button>
+            </div>
+            <span class="hint">The agent signs in at <b>{{ agentPortalUrl }}</b> with this Google account (Gmail or Google Workspace). It’s never shown on the card. An admin can use their own email too. Leave blank for no portal access.</span>
+            <span v-if="!loginEmail.trim()" class="warn">No sign-in yet: this agent can’t open the portal.</span>
           </div>
         </section>
 
@@ -387,14 +402,6 @@ onBeforeRouteLeave(async () => {
           </div>
         </section>
 
-        <section v-if="admin" class="block">
-          <div class="block-h"><h2>Portal login</h2></div>
-          <div class="field">
-            <label for="f-login">Portal login email (Google account)</label>
-            <input id="f-login" v-model="loginEmail" class="inp" type="email" placeholder="agent@gmail.com" autocomplete="off">
-            <span class="hint">The agent signs in at <b>{{ agentPortalUrl }}</b> with this Google account to see their applications and edit their card. It must be a Gmail or Google Workspace address. An admin can use their own email here too. Leave blank for no portal access.</span>
-          </div>
-        </section>
 
         <section class="block">
           <div class="block-h"><h2>NFC card link</h2><span v-if="!admin" class="lock">Set by admin</span></div>

@@ -196,3 +196,6 @@
 .link-check.bad{color:var(--err)}
 .switch-area{white-space:nowrap}
 @media (max-width:480px){.who .chip{display:none}}
+.nologin{font-size:12px;font-weight:600;color:var(--st-new)}
+.signin{border-top:1px solid var(--line);padding-top:12px}
+.slug-row>.inp{flex:1;min-width:0}
