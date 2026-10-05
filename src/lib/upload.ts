@@ -1,13 +1,10 @@
-// Client side of the requirements upload. Each agent runs their own upload service (their copy of
-// google/upload.gs under their own Google account); files go there and land in the agent's Drive,
-// after the database approves the client's private upload link.
+// Client side of the requirements upload. The drive-upload function checks the client's private link
+// and prepares a one-time Google upload address in the agent's Drive; the browser then sends the file
+// straight to Google, and the function records it on the application.
+import { CONFIG } from '@/config';
 
 export const DOC_ACCEPT = 'application/pdf,image/jpeg,image/png,image/webp';
 export const DOC_MAX_MB = 10;
-
-/** Apps Script web app URL (regular or Google Workspace account). */
-export const isServiceUrl = (u: string) =>
-  /^https:\/\/script\.google\.com\/(a\/macros\/[^/]+|macros)\/s\/[A-Za-z0-9_-]+\/exec$/.test(u.trim());
 
 /** A message explaining why the file can't be uploaded, or null if it's fine. */
 export function checkDocument(file: File): string | null {
@@ -29,39 +26,28 @@ async function shrinkPhoto(file: File): Promise<Blob> {
   return blob && blob.size < file.size ? blob : file;
 }
 
-function toBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(String(r.result).split(',')[1] ?? '');
-    r.onerror = () => reject(new Error('Couldn’t read that file.'));
-    r.readAsDataURL(blob);
-  });
-}
-
-export async function uploadDocument(o: { url: string; ref: string; token: string; type: string; file: File }) {
-  const blob = await shrinkPhoto(o.file);
-  const name = blob === o.file ? o.file.name : o.file.name.replace(/\.[^.]+$/, '') + '.jpg';
-  // text/plain keeps this a "simple" request, which Apps Script web apps accept from any site.
-  const res = await fetch(o.url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ ref: o.ref, token: o.token, type: o.type, name, mime: blob.type || o.file.type, data: await toBase64(blob) })
-  }).catch(() => { throw new Error('Couldn’t reach your agent’s upload service. Check your connection and try again.'); });
-  if (!res.ok) throw new Error('Your agent’s upload service didn’t respond. Try again in a moment.');
-  const data = await res.json() as { ok: boolean; error?: string; name: string; count: number };
-  if (!data.ok) throw new Error(data.error || 'That upload didn’t go through.');
+async function callUpload<T>(body: Record<string, unknown>): Promise<T> {
+  const headers: Record<string, string> = { apikey: CONFIG.supabaseKey, 'Content-Type': 'application/json' };
+  if (!CONFIG.supabaseKey.startsWith('sb_')) headers.Authorization = 'Bearer ' + CONFIG.supabaseKey;
+  const res = await fetch(CONFIG.supabaseUrl.replace(/\/$/, '') + '/functions/v1/drive-upload', {
+    method: 'POST', headers, body: JSON.stringify(body)
+  }).catch(() => { throw new Error('Couldn’t reach Carzy. Check your connection and try again.'); });
+  const data = await res.json().catch(() => ({})) as T & { ok?: boolean; error?: string };
+  if (!res.ok || data.ok === false) throw new Error(data.error || 'That upload didn’t go through. Try again in a moment.');
   return data;
 }
 
-/** Calls the agent's service to confirm it's deployed correctly; returns the Google account it runs as. */
-export async function testService(url: string): Promise<{ ok: true; account: string; folder: string } | { ok: false; error: string }> {
-  if (!isServiceUrl(url)) return { ok: false, error: 'That isn’t a web app link. It should end in /exec.' };
-  try {
-    const res = await fetch(url.trim());
-    const data = await res.json() as { ok?: boolean; service?: string; account?: string; folder?: string };
-    if (data.service !== 'carzy-upload') return { ok: false, error: 'That link works, but it isn’t the Carzy upload script.' };
-    return { ok: true, account: data.account ?? '', folder: data.folder ?? 'Carzy requirements' };
-  } catch {
-    return { ok: false, error: 'Couldn’t open it. Check that “Who has access” is set to “Anyone”, then deploy again.' };
-  }
+export async function uploadDocument(o: { ref: string; token: string; type: string; file: File }) {
+  const blob = await shrinkPhoto(o.file);
+  const mime = blob.type || o.file.type;
+  const name = blob === o.file ? o.file.name : o.file.name.replace(/\.[^.]+$/, '') + '.jpg';
+  const { upload_url } = await callUpload<{ upload_url: string }>({
+    action: 'start', ref: o.ref, token: o.token, type: o.type, name, mime, size: blob.size
+  });
+  // Straight to Google Drive (the one-time address only accepts this file).
+  const put = await fetch(upload_url, { method: 'PUT', headers: { 'Content-Type': mime }, body: blob })
+    .catch(() => { throw new Error('The upload was interrupted. Check your connection and try again.'); });
+  if (!put.ok) throw new Error('Google Drive didn’t accept that file. Try again.');
+  const { id } = await put.json() as { id: string };
+  return callUpload<{ name: string; count: number }>({ action: 'finish', ref: o.ref, token: o.token, type: o.type, file_id: id });
 }

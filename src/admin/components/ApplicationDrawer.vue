@@ -123,7 +123,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey));
           <span class="hint">{{ uploadLink && !expired ? `Send this link to the client to upload documents. It works until ${longDate(app.upload_expires)}.` : 'The client’s upload link has expired.' }}</span>
           <button class="btn small" type="button" style="align-self:flex-start" :disabled="renewing" @click="renewLink">{{ uploadLink && !expired ? 'Make a new link' : 'Create upload link' }}</button>
         </template>
-        <p v-else class="hint" style="margin:0">Uploads aren’t set up for this agent yet: see <b>Requirements upload</b> on their card.</p>
+        <p v-else class="hint" style="margin:0">This agent hasn’t connected Google Drive yet, so clients can’t upload. They connect it from <b>My card</b> in the Agent Portal.</p>
       </div>
 
       <button class="btn" @click="copyDetails">Copy details</button>

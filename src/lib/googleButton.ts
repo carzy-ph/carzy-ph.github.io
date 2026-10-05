@@ -11,7 +11,7 @@ interface GoogleId {
 declare global { interface Window { google?: { accounts: { id: GoogleId } } } }
 
 let scriptLoad: Promise<void> | null = null;
-function loadScript(): Promise<void> {
+export function loadGsi(): Promise<void> {
   scriptLoad ??= new Promise((resolve, reject) => {
     const s = Object.assign(document.createElement('script'), { src: 'https://accounts.google.com/gsi/client', async: true });
     s.onload = () => resolve();
@@ -36,7 +36,7 @@ export async function renderGoogleButton(
   el: HTMLElement,
   opts: { dark: boolean; onSignedIn: () => void; onError: (msg: string) => void }
 ) {
-  await loadScript();
+  await loadGsi();
   // A fresh nonce per render: Google signs the hashed one into the token, Supabase checks the raw one.
   const raw = crypto.randomUUID();
   const hashed = await sha256Hex(raw);

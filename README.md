@@ -179,28 +179,33 @@ Everything else can change at any time and shows up immediately.
 ## Requirements upload (Google Drive)
 
 After sending the application, clients can upload their requirements (valid IDs, proof of income,
-proof of billing, co-maker documents). Each agent's files go into a **"Carzy requirements"** folder in
-**that agent's own Google Drive**, with a subfolder per application (for example
-`A-BED872 - Juan Dela Cruz`). Clients get a private upload link valid for 30 days; agents can copy
-or renew it from the application in the portal.
+proof of billing, co-maker documents). Each agent clicks **Connect Google Drive** once in their
+portal (**My card → Requirements upload**) and approves Google's permission screen. Files then go into a
+**"Carzy requirements"** folder in **that agent's own Google Drive**, one subfolder per application
+(for example `A-BED872 - Juan Dela Cruz`).
+
+- Carzy uses Google's `drive.file` permission: it can only see and edit files it saved there, nothing
+  else in the agent's Drive. Google classes this as non-sensitive, so no review is needed.
+- Clients use a private upload link (valid 30 days). Agents can copy or renew it from the
+  application in the portal.
+- Files go from the client's browser straight to Google Drive. Two Supabase Edge Functions
+  (`supabase/functions/drive-connect` and `drive-upload`) handle connecting and checking uploads.
+  The agent's Google token is stored only for these functions; the website can never read it.
+- Limits: PDF, JPG, PNG or WebP, up to 10 MB each, 20 files per application. Phone photos are shrunk
+  before upload. Files use the agent's own Google storage (15 GB free).
 
 **Admin, once:**
-1. Open [script.google.com](https://script.google.com) → **New project** → name it `Carzy upload`.
-2. Replace the code with `google/upload.gs`. At the top, set `SUPABASE_URL` and `SUPABASE_KEY`
-   (the **publishable** key, never the secret one). Save.
-3. **Share → General access → Anyone with the link → Viewer**, and copy the link.
-4. Add that link as the GitHub repository variable `VITE_UPLOAD_TEMPLATE_URL`, so the portal shows
-   it to agents. It's picked up on the next deploy.
-
-**Each agent, once (about 3 minutes):** in the portal, open **My card → Requirements upload** and
-follow the steps there:
-1. Open the script link and click **Make a copy**, signed in to their own Google account.
-2. Click **Deploy → New deployment → Web app**, with **Execute as: Me** and **Who has access: Anyone**,
-   then deploy and allow access.
-3. Paste the Web app URL, click **Test**, then save.
-
-Limits: PDF, JPG, PNG or WebP, up to 10 MB each, at most 20 files per application. Phone photos are
-shrunk before upload. Files use the agent's own Google storage (15 GB free).
+1. Google Cloud Console: enable the **Google Drive API**. Under **Google Auth Platform → Data access →
+   Add or remove scopes**, add `https://www.googleapis.com/auth/drive.file`, then save.
+2. Supabase → **Edge Functions → Secrets**: add `GOOGLE_CLIENT_ID` (your OAuth client ID) and
+   `GOOGLE_CLIENT_SECRET` (its secret).
+3. Deploy the functions (needs `npx supabase login` once):
+   ```bash
+   npx supabase functions deploy drive-connect --project-ref YOUR-PROJECT-REF
+   ```
+   ```bash
+   npx supabase functions deploy drive-upload --no-verify-jwt --project-ref YOUR-PROJECT-REF
+   ```
 
 ## Day to day
 - **An agent leaves:** turn off **Card is live**. Their card then shows the dealership contact.

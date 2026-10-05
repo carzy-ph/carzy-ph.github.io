@@ -34,10 +34,10 @@ onMounted(async () => {
       <p v-else-if="!info" class="muted">Loading…</p>
       <template v-else>
         <p>Hi {{ info.first_name }}! Upload the documents for your <b>{{ info.unit }}</b> application ({{ info.ref }}). This link works until {{ until }}.</p>
-        <div v-if="info.upload_url" class="app-form">
-          <DocumentUpload :upload-url="info.upload_url" :app-ref="info.ref" :token="token" :employment-type="info.employment_type" :co-makers="info.co_makers" :existing="info.documents" />
+        <div v-if="info.uploads" class="app-form">
+          <DocumentUpload :app-ref="info.ref" :token="token" :employment-type="info.employment_type" :co-makers="info.co_makers" :existing="info.documents" />
         </div>
-        <p v-else class="form-error">Uploading isn’t set up for this agent yet. Send your documents to {{ agent.name.split(' ')[0] }} directly for now.</p>
+        <p v-else class="form-error">Uploading isn’t available for this agent yet. Send your documents to {{ agent.name.split(' ')[0] }} directly for now.</p>
       </template>
     </section>
   </div>

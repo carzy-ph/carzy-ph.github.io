@@ -181,8 +181,8 @@ const prepare = computed(() => {
       <p>Thanks, {{ form.first_name }}! {{ firstAgentName }} will contact you within 1 business day about the next steps for your {{ unitName }}.</p>
       <span class="ref">Reference {{ done.ref }}</span>
       <DocumentUpload
-        v-if="done.upload_url && done.upload_token"
-        :upload-url="done.upload_url" :app-ref="done.ref" :token="done.upload_token"
+        v-if="done.uploads && done.upload_token"
+        :app-ref="done.ref" :token="done.upload_token"
         :employment-type="form.employment_type" :co-makers="form.co_makers.length" />
       <div v-else class="prep">
         <b>Documents to prepare</b>

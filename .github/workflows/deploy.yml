@@ -37,7 +37,6 @@ jobs:
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_KEY: ${{ vars.VITE_SUPABASE_KEY }}
           VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
-          VITE_UPLOAD_TEMPLATE_URL: ${{ vars.VITE_UPLOAD_TEMPLATE_URL }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

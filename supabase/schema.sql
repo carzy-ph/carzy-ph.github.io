@@ -134,14 +134,26 @@ alter table public.applications add column if not exists documents jsonb not nul
 alter table public.applications add column if not exists upload_token text;
 alter table public.applications add column if not exists upload_expires timestamptz;
 
--- Each agent's own upload service: their copy of google/upload.gs, deployed under their own Google
--- account, which saves clients' requirements into a "Carzy requirements" folder in their Drive.
+-- Each agent's connected Google Drive ("Connect Google Drive" in their portal). Clients' requirements are
+-- saved into a "Carzy requirements" folder in that agent's own Drive. Carzy may only touch files it
+-- created there (Google's drive.file permission). The refresh token is readable only by the upload
+-- functions (supabase/functions), never by the website.
 create table if not exists public.agent_drive (
-  agent_id    uuid primary key references public.agents(id) on delete cascade,
-  upload_url  text not null check (upload_url ~ '^https://script\.google\.com/(a/macros/[^/]+|macros)/s/[A-Za-z0-9_-]+/exec$'),
-  account     text,
-  updated_at  timestamptz not null default now()
+  agent_id      uuid primary key references public.agents(id) on delete cascade,
+  account       text,
+  folder_id     text,
+  refresh_token text,
+  connected_at  timestamptz not null default now()
 );
+-- Upgrade from the earlier script-based version (safe to re-run).
+alter table public.agent_drive drop column if exists upload_url;
+alter table public.agent_drive drop column if exists updated_at;
+alter table public.agent_drive add column if not exists folder_id text;
+alter table public.agent_drive add column if not exists refresh_token text;
+alter table public.agent_drive add column if not exists connected_at timestamptz not null default now();
+revoke all on public.agent_drive from anon, authenticated;
+grant select (agent_id, account, folder_id, connected_at) on public.agent_drive to authenticated;
+grant all on public.agent_drive to service_role;
 
 -- One row each time a card page is opened from the NFC card (or QR / shared link).
 create table if not exists public.card_taps (
@@ -272,9 +284,11 @@ alter table public.agent_drive  enable row level security;
 
 drop policy if exists "Admins and owners manage drive folder" on public.agent_drive;
 drop policy if exists "Admins and owners manage upload service" on public.agent_drive;
-create policy "Admins and owners manage upload service" on public.agent_drive for all to authenticated
-  using (public.is_admin() or agent_id = public.my_agent_id())
-  with check (public.is_admin() or agent_id = public.my_agent_id());
+drop policy if exists "Admins and owners see Drive connection" on public.agent_drive;
+-- Read-only for the portal (and without the token column); connecting and disconnecting go
+-- through the drive-connect function.
+create policy "Admins and owners see Drive connection" on public.agent_drive for select to authenticated
+  using (public.is_admin() or agent_id = public.my_agent_id());
 
 drop policy if exists "Catalog is public"     on public.brands;
 drop policy if exists "Admins manage brands"  on public.brands;
@@ -405,8 +419,8 @@ begin
   ));
 end $$;
 
--- Returns {ref, upload_token, upload_url}: the reference number, the private upload link token,
--- and the agent's upload service (null until they set it up).
+-- Returns {ref, upload_token, uploads}: the reference number, the private upload link token,
+-- and whether the agent has connected their Google Drive for requirements.
 drop function if exists public.submit_application(text, jsonb, text);
 create function public.submit_application(p_slug text, p jsonb, p_source text default 'link')
 returns jsonb
@@ -427,7 +441,7 @@ declare
 begin
   -- Hidden "website" field: real people leave it empty, bots fill it in.
   if coalesce(p ->> 'website', '') <> '' then
-    return jsonb_build_object('ref', 'A-RECEIVED', 'upload_token', null, 'upload_url', null);
+    return jsonb_build_object('ref', 'A-RECEIVED', 'upload_token', null, 'uploads', false);
   end if;
 
   select * into a from agents where slug = p_slug and active;
@@ -537,7 +551,7 @@ begin
   return jsonb_build_object(
     'ref', v_ref,
     'upload_token', v_token,
-    'upload_url', (select upload_url from agent_drive where agent_id = a.id)
+    'uploads', exists (select 1 from agent_drive where agent_id = a.id and refresh_token is not null)
   );
 end $$;
 
@@ -558,29 +572,11 @@ begin
     'co_makers', jsonb_array_length(x.co_makers), 'expires', x.upload_expires,
     'documents', coalesce((select jsonb_agg(jsonb_build_object('name', d ->> 'name', 'type', d ->> 'type'))
                            from jsonb_array_elements(x.documents) d), '[]'),
-    'upload_url', (select upload_url from agent_drive where agent_id = x.agent_id)
+    'uploads', exists (select 1 from agent_drive where agent_id = x.agent_id and refresh_token is not null)
   );
 end $$;
 
--- Used by the agent's upload service before saving a file. Needs the client's private link token.
-create or replace function public.verify_upload(p_ref text, p_token text) returns jsonb
-language plpgsql stable security definer set search_path = public as $$
-declare
-  x applications;
-  v_url text;
-begin
-  select * into x from applications where ref = p_ref and upload_token = p_token and coalesce(p_token, '') <> '';
-  if not found or x.upload_expires < now() then
-    raise exception 'This upload link has expired or isn''t valid. Ask your agent for a new one.';
-  end if;
-  if jsonb_array_length(x.documents) >= 20 then raise exception 'This application already has 20 files.'; end if;
-  select upload_url into v_url from agent_drive where agent_id = x.agent_id;
-  if v_url is null then raise exception 'Your agent hasn''t set up uploads yet.'; end if;
-  -- The agent's script checks upload_url is its own, so it only saves files for its agent's clients.
-  return jsonb_build_object('upload_url', v_url, 'subfolder', x.ref || ' - ' || x.full_name);
-end $$;
-
--- Used by the agent's upload service: records a saved file (a Google Drive link) on the application.
+-- Used by the drive-upload function: records a saved file (a Google Drive link) on the application.
 create or replace function public.add_application_document(p_ref text, p_token text, p_doc jsonb) returns int
 language plpgsql security definer set search_path = public as $$
 declare
@@ -638,15 +634,13 @@ $$;
 revoke execute on function public.submit_application(text, jsonb, text) from public;
 revoke execute on function public.upload_info(text, text) from public;
 revoke execute on function public.renew_upload_link(uuid) from public;
-revoke execute on function public.verify_upload(text, text) from public;
-revoke execute on function public.add_application_document(text, text, jsonb) from public;
+revoke execute on function public.add_application_document(text, text, jsonb) from public, anon, authenticated;
 grant execute on function public.upload_info(text, text) to anon, authenticated;
 grant execute on function public.renew_upload_link(uuid) to authenticated;
--- The token in the client's upload link is what protects these two.
-grant execute on function public.verify_upload(text, text) to anon, authenticated;
-grant execute on function public.add_application_document(text, text, jsonb) to anon, authenticated;
--- Removed in favour of verify_upload (agents run their own upload service now).
+grant execute on function public.add_application_document(text, text, jsonb) to service_role;
+-- Removed: earlier upload designs.
 drop function if exists public.upload_target(text, text);
+drop function if exists public.verify_upload(text, text);
 revoke execute on function public.log_tap(text, text) from public;
 grant execute on function public.submit_application(text, jsonb, text) to anon, authenticated;
 grant execute on function public.log_tap(text, text)                   to anon, authenticated;

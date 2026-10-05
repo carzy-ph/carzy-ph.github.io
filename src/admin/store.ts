@@ -100,7 +100,7 @@ export async function loadAll() {
     supabase.rpc('agent_stats'),
     supabase.from('applications').select('*').order('created_at', { ascending: false }).limit(2000),
     admin ? supabase.from('team').select('*') : Promise.resolve({ data: [], error: null }),
-    supabase.from('agent_drive').select('*')
+    supabase.from('agent_drive').select('agent_id, account, folder_id, connected_at')
   ]);
   for (const r of [ag, br, md, st, ap, tm]) if (r.error) throw r.error;
   // Uploads are optional: if the database hasn't been updated for them yet, the portal still works.

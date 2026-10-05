@@ -176,13 +176,13 @@ export interface AgentStats {
 }
 
 /** What submit_application returns. */
-export interface SubmitResult { ref: string; upload_token: string | null; upload_url: string | null }
+export interface SubmitResult { ref: string; upload_token: string | null; uploads: boolean }
 
 /** What upload_info returns for a client's upload link. */
 export interface UploadInfo {
   ref: string; first_name: string; unit: string; employment_type: EmploymentType;
-  co_makers: number; expires: string; documents: { name: string; type: string }[]; upload_url: string | null;
+  co_makers: number; expires: string; documents: { name: string; type: string }[]; uploads: boolean;
 }
 
-/** An agent's own upload service (their copy of google/upload.gs). */
-export interface AgentDrive { agent_id: string; upload_url: string; account: string | null }
+/** An agent's connected Google Drive (the token itself stays on the server). */
+export interface AgentDrive { agent_id: string; account: string | null; folder_id: string | null; connected_at: string }

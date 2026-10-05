@@ -7,8 +7,6 @@ import { requirementTypes } from '@/lib/constants';
 import { DOC_ACCEPT, DOC_MAX_MB, checkDocument, uploadDocument } from '@/lib/upload';
 
 const props = defineProps<{
-  /** The agent's own upload service. */
-  uploadUrl: string;
   appRef: string;
   token: string;
   employmentType: EmploymentType;
@@ -39,7 +37,7 @@ async function onPick(type: string, e: Event) {
   try {
     for (const [i, file] of files.entries()) {
       progress.value = files.length > 1 ? `Uploading ${i + 1} of ${files.length}…` : 'Uploading…';
-      const r = await uploadDocument({ url: props.uploadUrl, ref: props.appRef, token: props.token, type, file });
+      const r = await uploadDocument({ ref: props.appRef, token: props.token, type, file });
       uploaded.push({ name: r.name, type });
     }
   } catch (err) {
