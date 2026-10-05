@@ -10,7 +10,7 @@ export interface Section { title: string; rows: Row[] }
 const years = (n: number | null | undefined) => (n == null ? '' : `${n} ${n === 1 ? 'year' : 'years'}`);
 
 /** One co-maker as a single section (same details as the applicant, plus relationship). */
-function coMakerSection(c: CoMaker, i: number): Section {
+export function coMakerSection(c: CoMaker, i: number): Section {
   const emp = EMPLOYMENT[c.employment_type ?? 'employed'];
   const name = [c.first_name, c.middle_name, c.last_name].filter(Boolean).join(' ');
   return { title: `Co-maker ${i + 1}: ${name}`, rows: [

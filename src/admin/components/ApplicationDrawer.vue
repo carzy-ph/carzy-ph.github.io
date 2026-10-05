@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import type { Application, AppStatus } from '@/types';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import type { Application, AppStatus, Deal } from '@/types';
 import { SOURCE, STATUS } from '@/lib/constants';
 import { longDate, relTime, toIntl } from '@/lib/format';
 import { cardUrl } from '@/config';
 import { asText, sections } from '@/lib/applications';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/lib/toast';
-import { agentById, friendly, isAdmin, store } from '../store';
+import { financed, money } from '@/lib/deal';
+import { exportApplicationPdf } from '@/lib/exportPdf';
+import { agentById, brandName, friendly, isAdmin, store } from '../store';
 import SelectMenu from '@/components/SelectMenu.vue';
 
 const props = defineProps<{ app: Application }>();
@@ -55,6 +57,43 @@ async function renewLink() {
 async function copyUploadLink() {
   try { await navigator.clipboard.writeText(uploadLink.value); toast('Upload link copied. Send it to the client by text, Viber or Messenger.'); }
   catch { toast('Copy didn’t work here. Select the link and copy it manually.'); }
+}
+
+// Loan details: the dealer-side fields of the bank form (GRM, price, down payment, terms, AOR).
+const DEAL_KEYS = ['grm', 'unit_price', 'down_payment', 'amount_financed', 'terms', 'aor'] as const;
+const deal = reactive<Required<Deal>>({ grm: '', unit_price: '', down_payment: '', amount_financed: '', terms: '', aor: '' });
+const loadDeal = () => DEAL_KEYS.forEach(k => (deal[k] = props.app.deal?.[k] ?? ''));
+loadDeal();
+watch(() => props.app.id, loadDeal);
+const autoFinanced = computed(() => money(financed({ ...deal, amount_financed: '' })));
+function saveDeal() {
+  const next: Deal = {};
+  DEAL_KEYS.forEach(k => { const v = deal[k].trim(); if (v) next[k] = v.slice(0, 40); });
+  const prev = props.app.deal ?? {};
+  if (DEAL_KEYS.some(k => (prev[k] ?? '') !== (next[k] ?? ''))) return update({ deal: next }, 'Loan details saved.');
+}
+
+// Export PDF: the bank's application form filled in, plus every uploaded requirement.
+const exporting = ref<{ msg: string; fraction: number } | null>(null);
+async function exportPdf() {
+  const agent = agentById(props.app.agent_id);
+  if (!agent || exporting.value) return;
+  exporting.value = { msg: 'Preparing…', fraction: 0 };
+  try {
+    await saveDeal();
+    const { missing, fileName } = await exportApplicationPdf({
+      app: props.app, agent,
+      brand: brandName(props.app.brand_id) || brandName(agent.brand_id),
+      onStep: (msg, fraction) => (exporting.value = { msg, fraction })
+    });
+    toast(missing
+      ? `${fileName} saved. ${missing} ${missing === 1 ? 'requirement' : 'requirements'} couldn’t be added: see the note pages inside.`
+      : `${fileName} saved.`);
+  } catch (e) {
+    toast((e as Error).message || 'The PDF couldn’t be made. Try again.');
+  } finally {
+    exporting.value = null;
+  }
 }
 
 function saveNote() {
@@ -126,6 +165,31 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey));
         <p v-else class="hint" style="margin:0">This agent hasn’t connected Google Drive yet, so clients can’t upload. They connect it from <b>My card</b> in the Agent Portal.</p>
       </div>
 
+      <div class="sect">
+        <h3>Loan details</h3>
+        <span class="hint">For the bank’s application form. The client doesn’t see these.</span>
+        <div class="grid2">
+          <div class="field"><label for="dl-price">Unit price</label><input id="dl-price" v-model="deal.unit_price" class="inp" inputmode="decimal" placeholder="1,430,000" @blur="saveDeal"></div>
+          <div class="field"><label for="dl-dp">Down payment</label><input id="dl-dp" v-model="deal.down_payment" class="inp" placeholder="286,000 or 20%" @blur="saveDeal"></div>
+          <div class="field"><label for="dl-af">Amount financed</label><input id="dl-af" v-model="deal.amount_financed" class="inp" inputmode="decimal" :placeholder="autoFinanced ? `${autoFinanced} (auto)` : 'Price less down payment'" @blur="saveDeal"></div>
+          <div class="field"><label for="dl-terms">Terms</label><input id="dl-terms" v-model="deal.terms" class="inp" placeholder="60 months" @blur="saveDeal"></div>
+          <div class="field"><label for="dl-aor">AOR</label><input id="dl-aor" v-model="deal.aor" class="inp" placeholder="Add-on rate, e.g. 1.25%" @blur="saveDeal"></div>
+          <div class="field"><label for="dl-grm">GRM</label><input id="dl-grm" v-model="deal.grm" class="inp" placeholder="Group / branch manager" @blur="saveDeal"></div>
+        </div>
+      </div>
+
+      <div class="export">
+        <button class="btn primary" type="button" :disabled="Boolean(exporting)" @click="exportPdf">
+          {{ exporting ? 'Exporting…' : 'Export PDF' }}
+        </button>
+        <div v-if="exporting" class="progress" role="status" aria-live="polite">
+          <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" :aria-valuenow="Math.round(exporting.fraction * 100)" aria-label="Exporting PDF">
+            <i :style="{ width: Math.round(exporting.fraction * 100) + '%' }"></i>
+          </div>
+          <span class="hint">{{ exporting.msg }}</span>
+        </div>
+        <span v-else class="hint">The filled-in application form, then each uploaded requirement on its own page.</span>
+      </div>
       <button class="btn" @click="copyDetails">Copy details</button>
       <p class="sens">Contains personal data covered by the Data Privacy Act. Share only with the financing bank.</p>
 
@@ -138,3 +202,11 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey));
     </div>
   </div>
 </template>
+
+<style scoped>
+.export { display: flex; flex-direction: column; gap: 8px; }
+.progress { display: flex; flex-direction: column; gap: 6px; }
+.bar { height: 6px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+.bar i { display: block; height: 100%; border-radius: 999px; background: var(--brand); transition: width .25s ease-out; }
+@media (prefers-reduced-motion: reduce) { .bar i { transition: none; } }
+</style>

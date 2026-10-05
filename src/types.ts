@@ -82,7 +82,10 @@ export type CoMaker = Partial<Omit<CoMakerInput, 'years_at_address' | 'years_emp
   years_at_address?: number; years_employed?: number; monthly_income?: number; other_income?: number;
 };
 
-export interface UploadedDocument { name: string; type: string; url: string; size: number; at: string }
+export interface UploadedDocument { id?: string; name: string; type: string; url: string; size: number; at: string }
+
+/** Loan details the agent fills in for the bank form (kept as typed). */
+export interface Deal { grm?: string; unit_price?: string; down_payment?: string; amount_financed?: string; terms?: string; aor?: string }
 
 /** What the client fills in on the card page. Numbers stay as typed text; the database parses them. */
 export interface ApplicationInput {
@@ -158,6 +161,7 @@ export interface Application {
   bank_branch: string | null;
   co_makers: CoMaker[];
   documents: UploadedDocument[];
+  deal: Deal;
   upload_token: string | null;
   upload_expires: string | null;
   consent: boolean;

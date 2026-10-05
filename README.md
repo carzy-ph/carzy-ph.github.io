@@ -206,12 +206,32 @@ portal (**My card → Requirements upload**) and approves Google's permission sc
    ```bash
    npx supabase functions deploy drive-upload --no-verify-jwt --project-ref YOUR-PROJECT-REF
    ```
+   ```bash
+   npx supabase functions deploy drive-files --project-ref YOUR-PROJECT-REF
+   ```
+
+## Export PDF (bank application form)
+Open an application and use **Export PDF**. The file (`APPLICATION LASTNAME, FIRST MIDDLE.pdf`) has:
+1. **The brand's own application form**, with logos, filled in from the application. Fill in
+   **Loan details** (unit price, down payment, terms, AOR, GRM) first; the amount financed is worked
+   out from the price and down payment.
+2. **Additional details** the form has no room for (birthplace, mother's maiden name, every
+   co-maker in full).
+3. **Every uploaded requirement**, one per page (multi-page PDFs keep all their pages). The
+   `drive-files` function fetches them from the agent's Drive. Password-protected PDFs can't be
+   copied, so they get a note page with the Drive link.
+
+**Brand forms:** each brand's form is a blank PDF in `public/forms/` plus the position of each
+answer (`FORMS` in `src/lib/applicationPdf.ts`). Mitsubishi is set up and matched by brand name.
+Brands without their own form get a standard form in the same layout. To add a brand, start from a
+filled-in sample of its form: blank out the sample answers and measure where each one goes.
 
 ## Day to day
 - **An agent leaves:** turn off **Card is live**. Their card then shows the dealership contact.
   Their applications stay, and you can reassign them from each application's details.
 - **A model is discontinued:** turn it off under **Units**.
-- **Sending to a bank:** open the application and use **Copy details**, or use **Export CSV**.
+- **Sending to a bank:** open the application and use **Export PDF** (the bank form plus all
+  requirements), **Copy details**, or **Export CSV**.
   These contain personal data covered by the Data Privacy Act. Share them only with the
   financing bank.
 - **Changing form choices** (civil status, residence, employment types): edit

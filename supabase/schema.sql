@@ -118,8 +118,10 @@ create table if not exists public.applications (
   consent              boolean not null,
   -- Optional co-makers, same details as the applicant plus relationship: [{first_name, …, relationship}]
   co_makers            jsonb not null default '[]',
-  -- Requirements uploaded to the agent's Google Drive folder: [{name, type, url, size, at}]
+  -- Requirements uploaded to the agent's Google Drive folder: [{id, name, type, url, size, at}]
   documents            jsonb not null default '[]',
+  -- Loan details the agent fills in for the bank form: {grm, unit_price, down_payment, amount_financed, terms, aor}
+  deal                 jsonb not null default '{}',
   -- Private link the client uses to upload requirements (see upload_info / renew_upload_link)
   upload_token         text,
   upload_expires       timestamptz,
@@ -133,6 +135,7 @@ alter table public.applications add column if not exists co_makers jsonb not nul
 alter table public.applications add column if not exists documents jsonb not null default '[]';
 alter table public.applications add column if not exists upload_token text;
 alter table public.applications add column if not exists upload_expires timestamptz;
+alter table public.applications add column if not exists deal jsonb not null default '{}';
 
 -- Each agent's connected Google Drive ("Connect Google Drive" in their portal). Clients' requirements are
 -- saved into a "Carzy requirements" folder in that agent's own Drive. Carzy may only touch files it
@@ -215,7 +218,7 @@ drop trigger if exists agents_guard on public.agents;
 create trigger agents_guard before update on public.agents
   for each row execute function public.guard_agent_update();
 
--- Agents can update status and notes on their own applications, but only admins can
+-- Agents can update status, notes and loan details on their own applications, but only admins can
 -- reassign one or change what the client submitted.
 create or replace function public.guard_application_update() returns trigger
 language plpgsql as $$
@@ -224,9 +227,9 @@ begin
   if current_setting('carzy.trusted', true) = 'on' then return new; end if;
   if coalesce(auth.role(), '') = 'authenticated' and not public.is_admin() then
     -- full_name is a generated column, which isn't filled in yet inside a BEFORE trigger.
-    if (to_jsonb(new) - array['status', 'internal_note', 'updated_at', 'full_name'])
-       is distinct from (to_jsonb(old) - array['status', 'internal_note', 'updated_at', 'full_name']) then
-      raise exception 'Agents can only change the status and internal note of an application.';
+    if (to_jsonb(new) - array['status', 'internal_note', 'deal', 'updated_at', 'full_name'])
+       is distinct from (to_jsonb(old) - array['status', 'internal_note', 'deal', 'updated_at', 'full_name']) then
+      raise exception 'Agents can only change the status, internal note and loan details of an application.';
     end if;
   end if;
   return new;
@@ -588,7 +591,7 @@ begin
   end if;
   update applications
      set documents = documents || jsonb_build_array(jsonb_build_object(
-           'name', left(p_doc ->> 'name', 200), 'type', left(p_doc ->> 'type', 60),
+           'id', left(p_doc ->> 'id', 120), 'name', left(p_doc ->> 'name', 200), 'type', left(p_doc ->> 'type', 60),
            'url', left(p_doc ->> 'url', 300), 'size', (p_doc ->> 'size')::bigint, 'at', now()))
    where ref = p_ref and upload_token = p_token and upload_expires >= now()
          and jsonb_array_length(documents) < 20

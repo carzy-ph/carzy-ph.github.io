@@ -74,7 +74,7 @@ serve(async req => {
     if (!file || file.trashed || !sub || !(file.parents ?? []).includes(sub)) throw new UserError('That upload didn’t finish. Try again.');
     const { data: count, error } = await db.rpc('add_application_document', {
       p_ref: b.ref, p_token: b.token,
-      p_doc: { name: file.name, type: String(b.type || 'Document').slice(0, 60), url: file.webViewLink, size: Number(file.size ?? 0) }
+      p_doc: { id: file.id, name: file.name, type: String(b.type || 'Document').slice(0, 60), url: file.webViewLink, size: Number(file.size ?? 0) }
     });
     if (error) throw new UserError(error.message);
     return json({ ok: true, name: file.name, count });
