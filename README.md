@@ -66,7 +66,7 @@ These rules are enforced in the database (`supabase/schema.sql`), not in the bro
 ## Project layout
 
 ```
-index.html, card.html, admin/index.html, portal/index.html   Entry pages (landing, card template, admin, agent portal)
+index.html, card.html, admin/index.html, portal/index.html   Entry pages (root redirects to /portal/, card template, admin, agent portal)
 src/
   card/                 Card page app
   admin/                Admin + agent portal app (start.ts picks the area): store, router, views, components
