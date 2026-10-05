@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<script>try{var t=localStorage.getItem('theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Agent Cards</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<script type="module">import '/src/styles/tokens.css';</script>
+<style>
+  .wrap { max-width: 440px; margin: 0 auto; padding-inline: 16px; padding-block: 10vh 40px; }
+  .box { background: var(--surface); border: 1px solid var(--line); border-radius: 22px; padding: 24px 20px; display: flex; flex-direction: column; gap: 12px; }
+  h1 { font-size: 36px; text-transform: uppercase; line-height: 1.05; }
+  p { margin: 0; color: var(--muted); }
+  .admin-link { align-self: center; font-size: 13px; color: var(--muted); }
+  a.btn { display: flex; justify-content: center; padding: 14px; border-radius: 14px; border: 1px solid var(--line); font-weight: 600; text-decoration: none; margin-top: 6px; }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <section class="box">
+    <span class="eyebrow">Sales team</span>
+    <h1>Agent cards</h1>
+    <p>Each of our sales consultants has a personal page. Tap their NFC card, or open the link they shared with you.</p>
+    <a class="btn" href="%BASE_URL%portal/">Agent sign in</a>
+    <a class="admin-link" href="%BASE_URL%admin/">Admin</a>
+  </section>
+</main>
+</body>
+</html>

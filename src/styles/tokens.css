@@ -1,0 +1,58 @@
+/* Shared design tokens for the card page and the portal.
+   Petrol accent, cool grey neutrals; Barlow Condensed for display, Figtree for text, JetBrains Mono for labels. */
+:root {
+  --bg: #E9EDF0; --surface: #FFFFFF; --surface-2: #F4F6F8; --ink: #141A21; --muted: #5A6573; --line: #D5DCE2;
+  --accent: #0F4C5C; --accent-ink: #FFFFFF; --signal: #D98E1F; --ok: #1E7A4C; --err: #B3261E; --frame: #1B2229;
+  --brand: #0F4C5C;
+  --st-new: #C27A0E; --st-contacted: #2F6FB5; --st-submitted: #7A4FC2; --st-approved: #0F7C83;
+  --st-released: #1E7A4C; --st-declined: #6B7480;
+  --display: "Barlow Condensed", "Arial Narrow", Arial, sans-serif;
+  --body: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  --r: 14px;
+  color-scheme: light;
+}
+/* Dark mode follows the device unless someone picked a theme with the switch (data-theme on <html>). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0B0F13; --surface: #141A21; --surface-2: #1A222B; --ink: #E8EDF1; --muted: #98A3AF; --line: #27313C;
+    --accent: #5EB4C6; --accent-ink: #06151A; --signal: #F0AE4E; --ok: #4CC38A; --err: #F2766B; --frame: #2A333D;
+    --st-new: #F0AE4E; --st-contacted: #73A9EA; --st-submitted: #AE8CF0; --st-approved: #4FC6CC;
+    --st-released: #4CC38A; --st-declined: #8C96A2;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0B0F13; --surface: #141A21; --surface-2: #1A222B; --ink: #E8EDF1; --muted: #98A3AF; --line: #27313C;
+  --accent: #5EB4C6; --accent-ink: #06151A; --signal: #F0AE4E; --ok: #4CC38A; --err: #F2766B; --frame: #2A333D;
+  --st-new: #F0AE4E; --st-contacted: #73A9EA; --st-submitted: #AE8CF0; --st-approved: #4FC6CC;
+  --st-released: #4CC38A; --st-declined: #8C96A2;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+body {
+  margin: 0; padding-top: env(safe-area-inset-top, 0px);
+  background: var(--bg); color: var(--ink);
+  font-family: var(--body); font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased;
+}
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+h1, h2, h3 { font-family: var(--display); margin: 0; text-wrap: balance; letter-spacing: .01em; }
+a { color: inherit; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; border-radius: 6px; }
+.eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.muted { color: var(--muted); }
+
+.toast {
+  position: fixed; left: 50%; bottom: calc(84px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+  background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 999px; font-size: 13px;
+  z-index: 50; max-width: calc(100% - 32px); text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  * { transition: none !important; }
+}

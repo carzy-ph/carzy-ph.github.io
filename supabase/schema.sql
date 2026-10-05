@@ -1,0 +1,433 @@
+-- =====================================================================
+-- Agent Cards: database setup
+-- Run this whole file once in Supabase: SQL Editor -> New query -> Run.
+-- Then add yourself as the first admin (see the last line of this file).
+-- =====================================================================
+
+-- ---------- Tables ----------------------------------------------------
+
+-- Units catalog, managed by admins: Brand -> Model -> Variant.
+-- Clients pick from it on the card form; turning a brand or model off hides it there.
+create table if not exists public.brands (
+  id          uuid primary key default gen_random_uuid(),
+  name        text not null unique,
+  color       text check (color ~ '^#[0-9A-Fa-f]{6}$'),   -- card color for agents of this brand; null = agent picks
+  active      boolean not null default true,
+  sort        int not null default 0,
+  created_at  timestamptz not null default now()
+);
+
+create table if not exists public.models (
+  id          uuid primary key default gen_random_uuid(),
+  brand_id    uuid not null references public.brands(id) on delete cascade,
+  name        text not null,
+  variants    text[] not null default '{}',   -- e.g. {"1.3 XE CVT","1.5 G CVT"}; empty = no variant choice
+  active      boolean not null default true,
+  sort        int not null default 0,
+  created_at  timestamptz not null default now(),
+  unique (brand_id, name)
+);
+
+-- One row per agent. Everything here is shown on the public card page.
+create table if not exists public.agents (
+  id          uuid primary key default gen_random_uuid(),
+  slug        text not null unique check (slug ~ '^[a-z0-9][a-z0-9-]{1,39}$'),
+  brand_id    uuid references public.brands(id) on delete set null,   -- null = sells all brands
+  name        text not null,
+  title       text not null default 'Sales Consultant',
+  dealership  text not null default '',
+  branch      text not null default '',
+  hours       text not null default '',
+  phone       text not null default '',
+  email       text not null default '',
+  photo_url   text,
+  cover_url   text,                          -- wide photo behind the name, e.g. a car or the showroom
+  theme       text not null default '#0F4C5C' check (theme ~ '^#[0-9A-Fa-f]{6}$'),
+  links       jsonb not null default '[]',   -- [{type, label, url}]
+  stats       jsonb not null default '[]',   -- [{v, l}]  e.g. {"v":"7","l":"Yrs selling"}
+  active      boolean not null default true,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
+-- Columns added after the first release. Safe to re-run on an existing project.
+alter table public.agents add column if not exists cover_url text;
+alter table public.brands add column if not exists color text check (color ~ '^#[0-9A-Fa-f]{6}$');
+
+-- Who can sign in to the portal. Admins see everything; agents see their own card and applications.
+create table if not exists public.team (
+  email       text primary key check (email = lower(email)),
+  role        text not null check (role in ('admin', 'agent')),
+  agent_id    uuid references public.agents(id) on delete set null,
+  created_at  timestamptz not null default now()
+);
+create unique index if not exists team_one_login_per_agent on public.team(agent_id) where agent_id is not null;
+
+-- Car loan applications sent from the card form. Contains sensitive personal data:
+-- only admins and the assigned agent can read a row (see the rules further down).
+create table if not exists public.applications (
+  id                   uuid primary key default gen_random_uuid(),
+  ref                  text not null unique default ('A-' || upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 6))),
+  agent_id             uuid not null references public.agents(id),
+  source               text not null default 'link',
+  status               text not null default 'new'
+                       check (status in ('new', 'contacted', 'submitted', 'approved', 'released', 'declined')),
+
+  -- Unit. `unit` keeps the full name as the client saw it, even if the catalog changes later.
+  unit                 text not null,
+  brand_id             uuid references public.brands(id) on delete set null,
+  model_id             uuid references public.models(id) on delete set null,
+  variant              text,
+
+  -- Applicant
+  first_name           text not null,
+  middle_name          text,
+  last_name            text not null,
+  full_name            text generated always as (
+                         first_name || coalesce(' ' || nullif(middle_name, ''), '') || ' ' || last_name
+                       ) stored,
+  birth_date           date not null,
+  birth_place          text not null,
+  mothers_maiden_name  text not null,
+  civil_status         text not null check (civil_status in ('single', 'married', 'widowed', 'separated', 'annulled')),
+
+  -- Contact & residence
+  mobile               text not null,
+  landline             text,
+  email                text,
+  address              text not null,
+  years_at_address     numeric(4,1),
+  residence_type       text check (residence_type in ('owned', 'rented', 'with_relatives', 'company_provided')),
+
+  -- Work or business
+  employment_type      text not null check (employment_type in ('employed', 'business', 'ofw')),
+  employer_name        text not null,
+  position             text,
+  years_employed       numeric(4,1),
+  employer_address     text,
+  employer_phone       text,
+  monthly_income       numeric(12,2) not null check (monthly_income >= 0),
+
+  -- Other income & bank
+  other_income_source  text,
+  other_income         numeric(12,2) check (other_income >= 0),
+  bank                 text,
+  bank_branch          text,
+
+  consent              boolean not null,
+  internal_note        text,
+  created_at           timestamptz not null default now(),
+  updated_at           timestamptz not null default now()
+);
+create index if not exists applications_agent_created on public.applications(agent_id, created_at desc);
+
+-- One row each time a card page is opened from the NFC card (or QR / shared link).
+create table if not exists public.card_taps (
+  id          bigint generated always as identity primary key,
+  agent_id    uuid not null references public.agents(id) on delete cascade,
+  source      text not null default 'nfc',
+  created_at  timestamptz not null default now()
+);
+create index if not exists card_taps_agent_created on public.card_taps(agent_id, created_at desc);
+
+-- ---------- Helpers ---------------------------------------------------
+
+create or replace function public.my_email() returns text
+language sql stable as $$
+  select lower(coalesce(auth.jwt() ->> 'email', ''))
+$$;
+
+create or replace function public.is_admin() returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from team where email = my_email() and role = 'admin')
+$$;
+
+create or replace function public.my_agent_id() returns uuid
+language sql stable security definer set search_path = public as $$
+  select agent_id from team where email = my_email() and role = 'agent'
+$$;
+
+create or replace function public.touch_updated_at() returns trigger
+language plpgsql as $$
+begin
+  new.updated_at = now();
+  return new;
+end $$;
+
+drop trigger if exists agents_touch on public.agents;
+create trigger agents_touch before update on public.agents
+  for each row execute function public.touch_updated_at();
+drop trigger if exists applications_touch on public.applications;
+create trigger applications_touch before update on public.applications
+  for each row execute function public.touch_updated_at();
+
+-- Agents may edit their own profile, but not the fields the admin controls.
+create or replace function public.guard_agent_update() returns trigger
+language plpgsql as $$
+begin
+  if coalesce(auth.role(), '') = 'authenticated' and not public.is_admin() then
+    if new.slug is distinct from old.slug
+       or new.brand_id is distinct from old.brand_id
+       or new.dealership is distinct from old.dealership
+       or new.branch is distinct from old.branch
+       or new.active is distinct from old.active then
+      raise exception 'Only an admin can change the card address, brand, dealership, branch or live status.';
+    end if;
+  end if;
+  return new;
+end $$;
+drop trigger if exists agents_guard on public.agents;
+create trigger agents_guard before update on public.agents
+  for each row execute function public.guard_agent_update();
+
+-- Agents can update status and notes on their own applications, but only admins can
+-- reassign one or change what the client submitted.
+create or replace function public.guard_application_update() returns trigger
+language plpgsql as $$
+begin
+  if coalesce(auth.role(), '') = 'authenticated' and not public.is_admin() then
+    -- full_name is a generated column, which isn't filled in yet inside a BEFORE trigger.
+    if (to_jsonb(new) - array['status', 'internal_note', 'updated_at', 'full_name'])
+       is distinct from (to_jsonb(old) - array['status', 'internal_note', 'updated_at', 'full_name']) then
+      raise exception 'Agents can only change the status and internal note of an application.';
+    end if;
+  end if;
+  return new;
+end $$;
+drop trigger if exists applications_guard on public.applications;
+create trigger applications_guard before update on public.applications
+  for each row execute function public.guard_application_update();
+
+-- ---------- Row level security ----------------------------------------
+
+alter table public.brands       enable row level security;
+alter table public.models       enable row level security;
+alter table public.agents       enable row level security;
+alter table public.team         enable row level security;
+alter table public.applications enable row level security;
+alter table public.card_taps    enable row level security;
+
+drop policy if exists "Catalog is public"     on public.brands;
+drop policy if exists "Admins manage brands"  on public.brands;
+drop policy if exists "Catalog is public"     on public.models;
+drop policy if exists "Admins manage models"  on public.models;
+create policy "Catalog is public"    on public.brands for select using (true);
+create policy "Admins manage brands" on public.brands for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+create policy "Catalog is public"    on public.models for select using (true);
+create policy "Admins manage models" on public.models for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+
+drop policy if exists "Cards are public"              on public.agents;
+drop policy if exists "Admins add agents"             on public.agents;
+drop policy if exists "Admins and owners edit agents" on public.agents;
+drop policy if exists "Admins delete agents"          on public.agents;
+create policy "Cards are public"              on public.agents for select using (true);
+create policy "Admins add agents"             on public.agents for insert to authenticated with check (public.is_admin());
+create policy "Admins and owners edit agents" on public.agents for update to authenticated
+  using (public.is_admin() or id = public.my_agent_id())
+  with check (public.is_admin() or id = public.my_agent_id());
+create policy "Admins delete agents"          on public.agents for delete to authenticated using (public.is_admin());
+
+drop policy if exists "See own membership" on public.team;
+drop policy if exists "Admins manage team" on public.team;
+create policy "See own membership" on public.team for select to authenticated
+  using (email = public.my_email() or public.is_admin());
+create policy "Admins manage team" on public.team for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+
+drop policy if exists "Read own applications"      on public.applications;
+drop policy if exists "Update own applications"    on public.applications;
+drop policy if exists "Admins delete applications" on public.applications;
+create policy "Read own applications"   on public.applications for select to authenticated
+  using (public.is_admin() or agent_id = public.my_agent_id());
+create policy "Update own applications" on public.applications for update to authenticated
+  using (public.is_admin() or agent_id = public.my_agent_id())
+  with check (public.is_admin() or agent_id = public.my_agent_id());
+create policy "Admins delete applications" on public.applications for delete to authenticated using (public.is_admin());
+-- No insert policy: visitors can only add applications through submit_application() below.
+
+drop policy if exists "Read own taps" on public.card_taps;
+create policy "Read own taps" on public.card_taps for select to authenticated
+  using (public.is_admin() or agent_id = public.my_agent_id());
+
+-- ---------- Public functions (called from the card page) ---------------
+
+-- Trims a text field from the submitted JSON, caps its length, and turns blanks into null.
+create or replace function public.clean_text(p jsonb, k text, max_len int default 200) returns text
+language sql immutable as $$
+  select nullif(left(trim(coalesce(p ->> k, '')), max_len), '')
+$$;
+
+-- Reads a non-negative number (commas and peso signs allowed), or null.
+create or replace function public.clean_amount(p jsonb, k text) returns numeric
+language sql immutable as $$
+  select case when regexp_replace(coalesce(p ->> k, ''), '[^0-9.]', '', 'g') ~ '^\d+(\.\d+)?$'
+              then regexp_replace(p ->> k, '[^0-9.]', '', 'g')::numeric end
+$$;
+
+create or replace function public.submit_application(p_slug text, p jsonb, p_source text default 'link')
+returns text
+language plpgsql security definer set search_path = public as $$
+declare
+  a         agents;
+  v_model   models;
+  v_brand   brands;
+  v_variant text;
+  v_unit    text;
+  v_mobile  text;
+  v_birth   date;
+  v_income  numeric;
+  v_ref     text;
+begin
+  -- Hidden "website" field: real people leave it empty, bots fill it in.
+  if coalesce(p ->> 'website', '') <> '' then
+    return 'A-RECEIVED';
+  end if;
+
+  select * into a from agents where slug = p_slug and active;
+  if not found then
+    raise exception 'This card is not accepting applications right now.';
+  end if;
+
+  -- Unit: must come from the catalog (limited to the agent's brand, if they have one).
+  -- Free text is accepted only while no units are set up for this card yet.
+  if coalesce(p ->> 'model_id', '') ~ '^[0-9a-f-]{36}$' then
+    select m.* into v_model
+    from models m join brands b on b.id = m.brand_id
+    where m.id = (p ->> 'model_id')::uuid and m.active and b.active
+      and (a.brand_id is null or m.brand_id = a.brand_id);
+    if not found then raise exception 'Choose a unit from the list.'; end if;
+    select * into v_brand from brands where id = v_model.brand_id;
+    v_variant := clean_text(p, 'variant', 80);
+    if cardinality(v_model.variants) > 0 then
+      if v_variant is null or not (v_variant = any (v_model.variants)) then
+        raise exception 'Choose a variant for the %.', v_model.name;
+      end if;
+    else
+      v_variant := null;
+    end if;
+    v_unit := v_brand.name || ' ' || v_model.name || coalesce(' ' || v_variant, '');
+  else
+    if exists (select 1 from models m join brands b on b.id = m.brand_id
+               where m.active and b.active and (a.brand_id is null or m.brand_id = a.brand_id)) then
+      raise exception 'Choose a unit from the list.';
+    end if;
+    v_unit := clean_text(p, 'unit', 160);
+    if v_unit is null then raise exception 'Enter the unit you are applying for.'; end if;
+  end if;
+  if clean_text(p, 'first_name') is null or clean_text(p, 'last_name') is null then
+    raise exception 'Enter your first and last name.';
+  end if;
+  if clean_text(p, 'birth_place') is null then raise exception 'Enter your birthplace.'; end if;
+  if clean_text(p, 'mothers_maiden_name') is null then raise exception 'Enter your mother''s maiden name.'; end if;
+  if clean_text(p, 'address') is null then raise exception 'Enter your complete address.'; end if;
+  if clean_text(p, 'employer_name') is null then raise exception 'Enter your employer or business name.'; end if;
+
+  if coalesce(p ->> 'birth_date', '') !~ '^\d{4}-\d{2}-\d{2}$' then
+    raise exception 'Enter your birthday.';
+  end if;
+  v_birth := (p ->> 'birth_date')::date;
+  if v_birth > current_date - interval '18 years' or v_birth < current_date - interval '100 years' then
+    raise exception 'Applicants must be at least 18 years old.';
+  end if;
+
+  v_mobile := regexp_replace(coalesce(p ->> 'mobile', ''), '\D', '', 'g');
+  if v_mobile ~ '^09\d{9}$' then
+    v_mobile := '+63' || substr(v_mobile, 2);
+  elsif v_mobile ~ '^639\d{9}$' then
+    v_mobile := '+' || v_mobile;
+  else
+    raise exception 'Use a PH mobile number, for example 0917 123 4567.';
+  end if;
+
+  v_income := clean_amount(p, 'monthly_income');
+  if v_income is null then raise exception 'Enter your monthly income.'; end if;
+
+  if coalesce(p ->> 'civil_status', '') not in ('single', 'married', 'widowed', 'separated', 'annulled') then
+    raise exception 'Choose your civil status.';
+  end if;
+  if coalesce(p ->> 'employment_type', '') not in ('employed', 'business', 'ofw') then
+    raise exception 'Choose employed, business owner, or OFW.';
+  end if;
+
+  if coalesce((p ->> 'consent')::boolean, false) is not true then
+    raise exception 'Please tick the consent box so we can process your application.';
+  end if;
+
+  if (select count(*) from applications where mobile = v_mobile and created_at > now() - interval '1 day') >= 3 then
+    raise exception 'We already received your application. Your agent will contact you soon.';
+  end if;
+
+  insert into applications (
+    agent_id, source, unit, brand_id, model_id, variant,
+    first_name, middle_name, last_name, birth_date, birth_place, mothers_maiden_name, civil_status,
+    mobile, landline, email, address, years_at_address, residence_type,
+    employment_type, employer_name, position, years_employed, employer_address, employer_phone, monthly_income,
+    other_income_source, other_income, bank, bank_branch, consent
+  ) values (
+    a.id,
+    case when p_source in ('nfc', 'qr', 'link') then p_source else 'link' end,
+    v_unit, v_model.brand_id, v_model.id, v_variant,
+    clean_text(p, 'first_name', 80), clean_text(p, 'middle_name', 80), clean_text(p, 'last_name', 80),
+    v_birth, clean_text(p, 'birth_place', 120), clean_text(p, 'mothers_maiden_name', 160),
+    p ->> 'civil_status',
+    v_mobile, clean_text(p, 'landline', 40), clean_text(p, 'email', 160),
+    clean_text(p, 'address', 300), least(clean_amount(p, 'years_at_address'), 100),
+    case when p ->> 'residence_type' in ('owned', 'rented', 'with_relatives', 'company_provided') then p ->> 'residence_type' end,
+    p ->> 'employment_type', clean_text(p, 'employer_name', 160), clean_text(p, 'position', 120),
+    least(clean_amount(p, 'years_employed'), 80), clean_text(p, 'employer_address', 300),
+    clean_text(p, 'employer_phone', 60), v_income,
+    clean_text(p, 'other_income_source', 160), clean_amount(p, 'other_income'),
+    clean_text(p, 'bank', 80), clean_text(p, 'bank_branch', 120),
+    true
+  )
+  returning ref into v_ref;
+
+  return v_ref;
+end $$;
+
+create or replace function public.log_tap(p_slug text, p_source text default 'nfc')
+returns void
+language sql security definer set search_path = public as $$
+  insert into card_taps (agent_id, source)
+  select id, case when p_source in ('nfc', 'qr') then p_source else 'link' end
+  from agents where slug = p_slug;
+$$;
+
+-- Per-agent numbers for the portal. Runs with the caller's rights, so agents only count their own.
+create or replace function public.agent_stats()
+returns table (agent_id uuid, taps_week bigint, last_tap timestamptz, new_applications bigint)
+language sql stable as $$
+  select a.id,
+         (select count(*) from card_taps t where t.agent_id = a.id and t.created_at > now() - interval '7 days'),
+         (select max(t.created_at) from card_taps t where t.agent_id = a.id),
+         (select count(*) from applications x where x.agent_id = a.id and x.status = 'new')
+  from agents a
+$$;
+
+revoke execute on function public.submit_application(text, jsonb, text) from public;
+revoke execute on function public.log_tap(text, text) from public;
+grant execute on function public.submit_application(text, jsonb, text) to anon, authenticated;
+grant execute on function public.log_tap(text, text)                   to anon, authenticated;
+grant execute on function public.agent_stats()                         to authenticated;
+
+-- ---------- Photo storage ----------------------------------------------
+
+insert into storage.buckets (id, name, public)
+values ('agent-photos', 'agent-photos', true)
+on conflict (id) do nothing;
+
+drop policy if exists "Team uploads agent photos" on storage.objects;
+create policy "Team uploads agent photos" on storage.objects for insert to authenticated
+  with check (
+    bucket_id = 'agent-photos'
+    and (public.is_admin() or (storage.foldername(name))[1] = public.my_agent_id()::text)
+  );
+
+-- Tell Supabase's API about new tables/columns right away (otherwise: "Could not find the column ... in the schema cache").
+notify pgrst, 'reload schema';
+
+-- ---------- First admin --------------------------------------------------
+-- Replace the email below with yours (lowercase), then run just this line:
+-- insert into public.team (email, role) values ('you@example.com', 'admin');

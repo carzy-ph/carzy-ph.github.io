@@ -1,0 +1,77 @@
+[
+  {
+    "id": "00000000-0000-4000-8000-000000000001",
+    "slug": "marco",
+    "name": "Marco Villanueva",
+    "title": "Senior Sales Consultant",
+    "dealership": "Sample Motors",
+    "branch": "Quezon City",
+    "hours": "Available · 9AM–6PM",
+    "phone": "0917 123 4567",
+    "email": "marco@example.com",
+    "photo_url": null,
+    "theme": "#0F4C5C",
+    "links": [
+      {
+        "type": "facebook",
+        "label": "Latest units & promos",
+        "url": "https://facebook.com/"
+      },
+      {
+        "type": "messenger",
+        "label": "Fastest reply",
+        "url": "https://m.me/"
+      },
+      {
+        "type": "viber",
+        "label": "0917 123 4567",
+        "url": "viber://chat?number=%2B639171234567"
+      },
+      {
+        "type": "instagram",
+        "label": "@sample.marco.cars",
+        "url": "https://instagram.com/"
+      },
+      {
+        "type": "tiktok",
+        "label": "Walkaround videos",
+        "url": "https://tiktok.com/"
+      }
+    ],
+    "stats": [
+      {
+        "v": "7",
+        "l": "Yrs selling"
+      },
+      {
+        "v": "320+",
+        "l": "Units released"
+      },
+      {
+        "v": "4.9★",
+        "l": "Client rating"
+      }
+    ],
+    "active": true,
+    "updated_at": "2026-10-05T00:00:00Z",
+    "brand_id": "b-toyota"
+  },
+  {
+    "id": "00000000-0000-4000-8000-000000000002",
+    "slug": "joy",
+    "name": "Joy Manalo",
+    "title": "Sales Consultant",
+    "dealership": "Sample Motors",
+    "branch": "Calamba, Laguna",
+    "hours": "On leave",
+    "phone": "0905 444 9876",
+    "email": "joy@example.com",
+    "photo_url": null,
+    "theme": "#1F5A3D",
+    "links": [],
+    "stats": [],
+    "active": false,
+    "updated_at": "2026-10-05T00:00:00Z",
+    "brand_id": null
+  }
+]

@@ -1,0 +1,76 @@
+{
+  "brands": [
+    {
+      "id": "b-toyota",
+      "name": "Toyota",
+      "active": true,
+      "sort": 0,
+      "color": "#B3121F"
+    },
+    {
+      "id": "b-mitsubishi",
+      "name": "Mitsubishi",
+      "active": true,
+      "sort": 1,
+      "color": null
+    }
+  ],
+  "models": [
+    {
+      "id": "m-vios",
+      "brand_id": "b-toyota",
+      "name": "Vios",
+      "variants": [
+        "1.3 XE CVT",
+        "1.3 XLE CVT",
+        "1.5 G CVT"
+      ],
+      "active": true,
+      "sort": 0
+    },
+    {
+      "id": "m-innova",
+      "brand_id": "b-toyota",
+      "name": "Innova",
+      "variants": [
+        "2.8 E MT",
+        "2.8 V AT"
+      ],
+      "active": true,
+      "sort": 1
+    },
+    {
+      "id": "m-fortuner",
+      "brand_id": "b-toyota",
+      "name": "Fortuner",
+      "variants": [
+        "2.4 G 4x2 AT",
+        "2.8 LTD 4x4 AT"
+      ],
+      "active": true,
+      "sort": 2
+    },
+    {
+      "id": "m-mirage",
+      "brand_id": "b-mitsubishi",
+      "name": "Mirage G4",
+      "variants": [
+        "GLX MT",
+        "GLX CVT"
+      ],
+      "active": true,
+      "sort": 0
+    },
+    {
+      "id": "m-xpander",
+      "brand_id": "b-mitsubishi",
+      "name": "Xpander",
+      "variants": [
+        "GLX MT",
+        "GLS AT"
+      ],
+      "active": true,
+      "sort": 1
+    }
+  ]
+}
