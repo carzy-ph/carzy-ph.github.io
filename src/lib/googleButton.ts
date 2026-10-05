@@ -61,6 +61,7 @@ export async function renderGoogleButton(
     text: 'continue_with',
     shape: 'rectangular',
     logo_alignment: 'center',
+    locale: 'en', // match the rest of the site instead of the browser's language
     width: Math.min(400, Math.max(200, Math.round(el.clientWidth || 320)))
   });
 }
