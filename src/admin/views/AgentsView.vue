@@ -13,7 +13,7 @@ const kpis = computed(() => {
   return {
     live: store.agents.filter(a => a.active).length,
     taps: Object.values(store.stats).reduce((s, r) => s + Number(r.taps_week || 0), 0),
-    fresh: store.applications.filter(a => a.status === 'new').length,
+    fresh: store.applications.filter(a => a.status === 'new' && !a.archived_at).length,
     released: store.applications.filter(a => a.status === 'released' && new Date(a.updated_at) >= monthStart).length
   };
 });

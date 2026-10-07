@@ -125,6 +125,8 @@ create table if not exists public.applications (
   -- Private link the client uses to upload requirements (see upload_info / renew_upload_link)
   upload_token         text,
   upload_expires       timestamptz,
+  -- Hidden from the main list by the agent or admin ("Archive"); null = active
+  archived_at          timestamptz,
   internal_note        text,
   created_at           timestamptz not null default now(),
   updated_at           timestamptz not null default now()
@@ -136,6 +138,7 @@ alter table public.applications add column if not exists documents jsonb not nul
 alter table public.applications add column if not exists upload_token text;
 alter table public.applications add column if not exists upload_expires timestamptz;
 alter table public.applications add column if not exists deal jsonb not null default '{}';
+alter table public.applications add column if not exists archived_at timestamptz;
 
 -- Each agent's connected Google Drive ("Connect Google Drive" in their portal). Clients' requirements are
 -- saved into a "Carzy requirements" folder in that agent's own Drive. Carzy may only touch files it
@@ -218,8 +221,9 @@ drop trigger if exists agents_guard on public.agents;
 create trigger agents_guard before update on public.agents
   for each row execute function public.guard_agent_update();
 
--- Agents can update status, notes and loan details on their own applications, but only admins can
--- reassign one or change what the client submitted.
+-- Agents can update status, notes, loan details and archiving on their own applications, but only
+-- admins can reassign one or change what the client submitted.
+-- (Deleting goes through the delete-application function, which also clears the files in Drive.)
 create or replace function public.guard_application_update() returns trigger
 language plpgsql as $$
 begin
@@ -227,9 +231,9 @@ begin
   if current_setting('carzy.trusted', true) = 'on' then return new; end if;
   if coalesce(auth.role(), '') = 'authenticated' and not public.is_admin() then
     -- full_name is a generated column, which isn't filled in yet inside a BEFORE trigger.
-    if (to_jsonb(new) - array['status', 'internal_note', 'deal', 'updated_at', 'full_name'])
-       is distinct from (to_jsonb(old) - array['status', 'internal_note', 'deal', 'updated_at', 'full_name']) then
-      raise exception 'Agents can only change the status, internal note and loan details of an application.';
+    if (to_jsonb(new) - array['status', 'internal_note', 'deal', 'archived_at', 'updated_at', 'full_name'])
+       is distinct from (to_jsonb(old) - array['status', 'internal_note', 'deal', 'archived_at', 'updated_at', 'full_name']) then
+      raise exception 'Agents can only change the status, internal note, loan details and archiving of an application.';
     end if;
   end if;
   return new;
@@ -381,7 +385,7 @@ begin
   if clean_text(p, 'first_name') is null or clean_text(p, 'last_name') is null then
     raise exception '%: enter the first and last name.', who;
   end if;
-  if coalesce(p ->> 'relationship', '') not in ('spouse', 'parent', 'child', 'sibling', 'relative', 'friend', 'employer', 'other') then
+  if coalesce(p ->> 'relationship', '') not in ('parent', 'sibling', 'live_in_partner', 'son', 'daughter', 'spouse') then
     raise exception '%: choose the relationship to the applicant.', who;
   end if;
   if coalesce(p ->> 'birth_date', '') !~ '^\d{4}-\d{2}-\d{2}$' then raise exception '%: enter the birthday.', who; end if;
@@ -630,7 +634,7 @@ language sql stable as $$
   select a.id,
          (select count(*) from card_taps t where t.agent_id = a.id and t.created_at > now() - interval '7 days'),
          (select max(t.created_at) from card_taps t where t.agent_id = a.id),
-         (select count(*) from applications x where x.agent_id = a.id and x.status = 'new')
+         (select count(*) from applications x where x.agent_id = a.id and x.status = 'new' and x.archived_at is null)
   from agents a
 $$;
 

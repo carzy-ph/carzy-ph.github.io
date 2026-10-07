@@ -51,10 +51,16 @@ export const EMPLOYMENT: Record<EmploymentType, { label: string; nameLabel: stri
   }
 };
 
+/** Who may be a co-maker, in the order the form offers them. */
 export const RELATIONSHIP: Record<Relationship, string> = {
-  spouse: 'Spouse', parent: 'Parent', child: 'Son / daughter', sibling: 'Sibling',
-  relative: 'Other relative', friend: 'Friend', employer: 'Employer', other: 'Other'
+  parent: 'Parent', sibling: 'Sibling', live_in_partner: 'Live-in partner', son: 'Son', daughter: 'Daughter', spouse: 'Spouse'
 };
+/** Choices offered before the list was narrowed; older applications may still have them. */
+const OLD_RELATIONSHIP: Record<string, string> = {
+  child: 'Son / daughter', relative: 'Other relative', friend: 'Friend', employer: 'Employer', other: 'Other'
+};
+export const relationshipLabel = (r: string | null | undefined) =>
+  (r ? RELATIONSHIP[r as Relationship] ?? OLD_RELATIONSHIP[r] ?? r : '');
 
 /** Requirements checklist on the upload page; the label also names the file in Drive. */
 export function requirementTypes(employment: EmploymentType, coMakers: number): { type: string; hint: string }[] {

@@ -50,3 +50,18 @@ export async function connectDrive(loginHint?: string): Promise<string> {
 export async function disconnectDrive() {
   await call({ action: 'disconnect' });
 }
+
+/**
+ * Deletes an application for good (admins, or the agent whose card it came from). Its uploaded files
+ * go to the trash in the agent's Google Drive. files: 'kept' means they couldn't be, so the agent
+ * should delete the Drive folder named `folder` themselves.
+ */
+export async function deleteApplication(id: string): Promise<{ files: 'none' | 'trashed' | 'kept'; folder: string }> {
+  const { data, error } = await supabase.functions.invoke('delete-application', { body: { application_id: id } });
+  if (error) {
+    const ctx = (error as { context?: Response }).context;
+    const detail = ctx ? await ctx.json().catch(() => null) as { error?: string } | null : null;
+    throw new Error(detail?.error || 'Couldn’t reach Carzy. Try again in a moment.');
+  }
+  return data as { files: 'none' | 'trashed' | 'kept'; folder: string };
+}

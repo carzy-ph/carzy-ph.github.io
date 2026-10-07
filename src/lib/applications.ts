@@ -1,6 +1,6 @@
 // Turning application records into readable text: the detail view, "Copy details", and CSV export.
 import type { Application, CoMaker } from '@/types';
-import { CIVIL_STATUS, EMPLOYMENT, RELATIONSHIP, RESIDENCE, SOURCE, STATUS } from './constants';
+import { CIVIL_STATUS, EMPLOYMENT, RESIDENCE, SOURCE, STATUS, relationshipLabel } from './constants';
 import { age, longDate, peso } from './format';
 import { download } from './vcard';
 
@@ -14,7 +14,7 @@ export function coMakerSection(c: CoMaker, i: number): Section {
   const emp = EMPLOYMENT[c.employment_type ?? 'employed'];
   const name = [c.first_name, c.middle_name, c.last_name].filter(Boolean).join(' ');
   return { title: `Co-maker ${i + 1}: ${name}`, rows: [
-    ['Relationship', c.relationship ? RELATIONSHIP[c.relationship] : ''],
+    ['Relationship', relationshipLabel(c.relationship)],
     ['Birthday', c.birth_date ? `${longDate(c.birth_date)} (age ${age(c.birth_date)})` : ''], ['Birthplace', c.birth_place ?? ''],
     ['Mother’s maiden name', c.mothers_maiden_name ?? ''], ['Civil status', c.civil_status ? CIVIL_STATUS[c.civil_status] : ''],
     ['Mobile', c.mobile ?? ''], ['Landline', c.landline ?? ''], ['Email', c.email ?? ''],
@@ -74,7 +74,7 @@ export function exportCsv(list: Application[], agentName: (id: string) => string
     ['Years employed', a => a.years_employed], ['Employer address', a => a.employer_address], ['Employer / HR phone', a => a.employer_phone],
     ['Monthly income', a => a.monthly_income], ['Other income source', a => a.other_income_source], ['Other monthly income', a => a.other_income],
     ['Bank', a => a.bank], ['Bank branch', a => a.bank_branch],
-    ['Co-makers', a => (a.co_makers ?? []).map(c => `${[c.first_name, c.last_name].join(' ')} (${c.relationship ? RELATIONSHIP[c.relationship] : ''}, ${c.mobile ?? ''}, ${peso(c.monthly_income)}/mo)`).join('; ')],
+    ['Co-makers', a => (a.co_makers ?? []).map(c => `${[c.first_name, c.last_name].join(' ')} (${relationshipLabel(c.relationship)}, ${c.mobile ?? ''}, ${peso(c.monthly_income)}/mo)`).join('; ')],
     ['Documents uploaded', a => (a.documents ?? []).length],
     ['Internal note', a => a.internal_note]
   ];

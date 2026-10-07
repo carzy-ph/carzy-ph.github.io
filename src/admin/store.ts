@@ -39,7 +39,7 @@ export const agentById = (id: string | null | undefined) => store.agents.find(a 
 export const brandName = (id: string | null | undefined) => store.brands.find(b => b.id === id)?.name ?? '';
 /** Card color as clients see it (hidden brands don't lend their color, same as the card page). */
 export const agentColor = (a: Pick<Agent, 'brand_id' | 'theme'>) => cardColor(a, store.brands.filter(b => b.active));
-export const newCount = computed(() => store.applications.filter(a => a.status === 'new').length);
+export const newCount = computed(() => store.applications.filter(a => a.status === 'new' && !a.archived_at).length);
 
 export function friendly(e: unknown): string {
   const err = e as { code?: string; message?: string } | null;

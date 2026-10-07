@@ -209,6 +209,9 @@ portal (**My card → Requirements upload**) and approves Google's permission sc
    ```bash
    npx supabase functions deploy drive-files --project-ref YOUR-PROJECT-REF
    ```
+   ```bash
+   npx supabase functions deploy delete-application --project-ref YOUR-PROJECT-REF
+   ```
 
 ## Export PDF (bank application form)
 Open an application and use **Export PDF**. The file (`APPLICATION LASTNAME, FIRST MIDDLE.pdf`) has:
@@ -228,6 +231,10 @@ own form get a standard form in the same layout. To add a brand, start from its 
 Excel sheet exported to PDF), blank out any sample answers, and measure where each answer goes.
 
 ## Day to day
+- **Archive or delete an application:** open it and use **Archive** (hides it; find it under the
+  **Archived** filter to restore it) or **Delete** (permanent; its uploaded files go to the trash in
+  the agent's Google Drive, where they can be restored for 30 days). Agents can do both for
+  applications from their own card.
 - **An agent leaves:** turn off **Card is live**. Their card then shows the dealership contact.
   Their applications stay, and you can reassign them from each application's details.
 - **A model is discontinued:** turn it off under **Units**.

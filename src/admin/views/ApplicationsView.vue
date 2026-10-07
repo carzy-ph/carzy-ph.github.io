@@ -17,10 +17,14 @@ const status = ref<AppStatus | 'all'>('all');
 const agentFilter = ref('all');
 const brandFilter = ref('all');
 const q = ref('');
+/** Showing archived applications instead of active ones. */
+const archived = ref(false);
 
-const base = computed(() => store.applications.filter(a =>
+const scoped = computed(() => store.applications.filter(a =>
   (!isAdmin.value || agentFilter.value === 'all' || a.agent_id === agentFilter.value) &&
   (brandFilter.value === 'all' || a.brand_id === brandFilter.value)));
+const base = computed(() => scoped.value.filter(a => Boolean(a.archived_at) === archived.value));
+const archivedCount = computed(() => scoped.value.filter(a => a.archived_at).length);
 
 const list = computed(() => {
   const s = q.value.trim().toLowerCase();
@@ -69,7 +73,11 @@ const brandOptions = computed(() => [{ value: 'all', label: 'All brands' }, ...s
       <button v-for="c in chips" :key="c.key" class="fchip" :class="{ on: status === c.key }" role="tab" :aria-selected="status === c.key" @click="status = c.key">
         {{ c.label }} <b>{{ c.n }}</b>
       </button>
+      <button v-if="archivedCount || archived" class="fchip archive" :class="{ on: archived }" :aria-pressed="archived" @click="archived = !archived; status = 'all'">
+        {{ archived ? '← Active' : 'Archived' }} <b v-if="!archived">{{ archivedCount }}</b>
+      </button>
     </div>
+    <p v-if="archived" class="hint" style="margin:0">Archived applications. Open one to restore or delete it.</p>
 
     <ul class="list">
       <li v-for="a in list" :key="a.id">
@@ -86,7 +94,7 @@ const brandOptions = computed(() => [{ value: 'all', label: 'All brands' }, ...s
         </RouterLink>
       </li>
       <li v-if="!list.length" class="empty">
-        {{ store.applications.length ? 'No applications match.' : 'No applications yet. They appear here as soon as a client sends the form on a card.' }}
+        {{ archived ? 'No archived applications.' : store.applications.length ? 'No applications match.' : 'No applications yet. They appear here as soon as a client sends the form on a card.' }}
       </li>
     </ul>
 
@@ -96,4 +104,5 @@ const brandOptions = computed(() => [{ value: 'all', label: 'All brands' }, ...s
 
 <style scoped>
 .row { text-decoration: none; color: inherit; }
+.fchip.archive { margin-left: auto; }
 </style>

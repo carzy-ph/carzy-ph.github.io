@@ -6,7 +6,7 @@
 // Brands without one get a standard form drawn in the same layout.
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from 'pdf-lib';
 import type { Agent, Application, CoMaker, Deal, EmploymentType, UploadedDocument } from '@/types';
-import { CIVIL_STATUS, RELATIONSHIP, RESIDENCE, SOURCE } from './constants';
+import { CIVIL_STATUS, RESIDENCE, SOURCE, relationshipLabel } from './constants';
 import { age, longDate } from './format';
 import { coMakerSection } from './applications';
 import { amount, financed, money } from './deal';
@@ -35,7 +35,7 @@ const shortDate = (iso: string) => {
   return `${d.getDate()}-${d.toLocaleString('en-US', { month: 'short' })}-${String(d.getFullYear()).slice(2)}`;
 };
 const yearsText = (n?: number | null) => (n == null ? '' : `${n} ${n === 1 ? 'YEAR' : 'YEARS'}`);
-const personLabel = (c: CoMaker) => (c.relationship === 'spouse' ? 'SPOUSE' : `CO-MAKER (${up(c.relationship ? RELATIONSHIP[c.relationship] : '')})`);
+const personLabel = (c: CoMaker) => (c.relationship === 'spouse' ? 'SPOUSE' : `CO-MAKER (${up(relationshipLabel(c.relationship))})`);
 
 class Sheet {
   page!: PDFPage;
@@ -152,12 +152,13 @@ function people(a: Application): Person[] {
   }))];
 }
 
-/** Co-makers with the spouse first (the forms have a spouse row). */
+/** Co-makers with the spouse (then a live-in partner) first: the forms have a spouse row. */
+const PARTNER_FIRST: Record<string, number> = { spouse: 0, live_in_partner: 1 };
 const orderedCoMakers = (a: Application) =>
-  [...(a.co_makers ?? [])].sort((x, y) => Number(y.relationship === 'spouse') - Number(x.relationship === 'spouse'));
+  [...(a.co_makers ?? [])].sort((x, y) => (PARTNER_FIRST[x.relationship ?? ''] ?? 2) - (PARTNER_FIRST[y.relationship ?? ''] ?? 2));
 // Short words for the form's narrow label column ("CO-MAKER CHILD:").
-const FORM_REL: Record<string, string> = { child: 'CHILD', relative: 'RELATIVE', other: '' };
-const relWord = (c: CoMaker) => (c.relationship ? FORM_REL[c.relationship] ?? up(RELATIONSHIP[c.relationship]) : '');
+const FORM_REL: Record<string, string> = { live_in_partner: 'PARTNER', child: 'CHILD', relative: 'RELATIVE', other: '' };
+const relWord = (c: CoMaker) => (c.relationship ? FORM_REL[c.relationship] ?? up(relationshipLabel(c.relationship)) : '');
 const downPaymentText = (v?: string) => (v?.trim().endsWith('%') ? v.trim() : money(amount(v)));
 
 /** Income rows shared by the forms: applicant, all co-makers, other income (with what it is). */
@@ -352,7 +353,7 @@ function fillGeely(s: Sheet, a: Application, agent: Agent) {
     if (cb.residence_type === 'owned') s.check(C.cbOwned);
     if (cb.residence_type === 'rented') s.check(C.cbRented);
     if (cb.residence_type === 'with_relatives') s.check(C.cbLiving);
-    if (cb.relationship) s.cell(up(RELATIONSHIP[cb.relationship]), B.relationship, left);
+    if (cb.relationship) s.cell(up(relationshipLabel(cb.relationship)), B.relationship, left);
     if (cb.employer_name || cb.monthly_income) s.check(cb.employment_type === 'business' ? C.cbBusiness : C.cbEmployment);
     if (cb.employment_type === 'ofw') s.cell('OFW', B.sourceNote, left);
     s.cell(up(cb.employer_name), B.employer, left);

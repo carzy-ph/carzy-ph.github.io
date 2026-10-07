@@ -46,7 +46,8 @@ export type CivilStatus = 'single' | 'married' | 'widowed' | 'separated' | 'annu
 export type ResidenceType = 'owned' | 'rented' | 'with_relatives' | 'company_provided';
 export type EmploymentType = 'employed' | 'business' | 'ofw';
 export type Source = 'nfc' | 'qr' | 'link';
-export type Relationship = 'spouse' | 'parent' | 'child' | 'sibling' | 'relative' | 'friend' | 'employer' | 'other';
+/** Who may be a co-maker. (Older applications may also hold child, relative, friend, employer or other.) */
+export type Relationship = 'parent' | 'sibling' | 'live_in_partner' | 'son' | 'daughter' | 'spouse';
 
 /** A co-maker's details: the same as the applicant's, plus how they're related. */
 export interface CoMakerInput {
@@ -162,6 +163,8 @@ export interface Application {
   co_makers: CoMaker[];
   documents: UploadedDocument[];
   deal: Deal;
+  /** When it was archived (hidden from the main list); null = active. */
+  archived_at: string | null;
   upload_token: string | null;
   upload_expires: string | null;
   consent: boolean;

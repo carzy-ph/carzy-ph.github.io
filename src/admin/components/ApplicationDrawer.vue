@@ -9,6 +9,8 @@ import { supabase } from '@/lib/supabase';
 import { toast } from '@/lib/toast';
 import { financed, money } from '@/lib/deal';
 import { exportApplicationPdf } from '@/lib/exportPdf';
+import { deleteApplication } from '@/lib/drive';
+import { confirmDialog } from '@/lib/confirm';
 import { agentById, brandName, friendly, isAdmin, store } from '../store';
 import SelectMenu from '@/components/SelectMenu.vue';
 
@@ -24,11 +26,12 @@ const statusOptions = (Object.entries(STATUS) as [AppStatus, (typeof STATUS)[App
   .map(([value, s]) => ({ value, label: s.label, color: `var(${s.cssVar})` }));
 const agentOptions = computed(() => store.agents.map(a => ({ value: a.id, label: a.name })));
 
-async function update(patch: Partial<Application>, msg: string) {
+async function update(patch: Partial<Application>, msg: string): Promise<boolean> {
   const { error } = await supabase.from('applications').update(patch).eq('id', props.app.id);
-  if (error) { toast(friendly(error)); return; }
+  if (error) { toast(friendly(error)); return false; }
   Object.assign(store.applications.find(a => a.id === props.app.id)!, patch);
   toast(msg);
+  return true;
 }
 
 function setStatus(s: AppStatus) {
@@ -96,6 +99,41 @@ async function exportPdf() {
   }
 }
 
+// Archive hides the application from the main list (it can be restored); Delete removes it for good.
+async function toggleArchive() {
+  const archiving = !props.app.archived_at;
+  const done = await update({ archived_at: archiving ? new Date().toISOString() : null },
+    archiving ? 'Archived. You’ll find it under Archived.' : 'Restored to your applications.');
+  if (done) emit('close');
+}
+
+const deleting = ref(false);
+async function remove() {
+  const n = props.app.documents?.length ?? 0;
+  const owner = agentById(props.app.agent_id);
+  const whose = owner && owner.id !== store.me?.agent_id ? `${owner.name}’s` : 'your';
+  const ok = await confirmDialog({
+    title: `Delete ${props.app.full_name}’s application?`,
+    message: (n ? `Its ${n} uploaded ${n === 1 ? 'file' : 'files'} will be moved to the trash in ${whose} Google Drive. ` : '') +
+      'This can’t be undone. To only hide it from your list, archive it instead.',
+    confirmLabel: 'Delete', danger: true
+  });
+  if (!ok) return;
+  deleting.value = true;
+  try {
+    const r = await deleteApplication(props.app.id);
+    store.applications = store.applications.filter(a => a.id !== props.app.id);
+    emit('close');
+    toast(r.files === 'kept'
+      ? `Application deleted. Its files couldn’t be removed from Google Drive: delete the folder “${r.folder}” there.`
+      : 'Application deleted.');
+  } catch (e) {
+    toast((e as Error).message);
+  } finally {
+    deleting.value = false;
+  }
+}
+
 function saveNote() {
   const v = note.value.trim() || null;
   if (v !== (props.app.internal_note ?? null)) update({ internal_note: v }, 'Note saved.');
@@ -116,7 +154,7 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey));
     <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="ap-name">
       <div class="sheet-h">
         <div>
-          <span class="eyebrow">{{ app.ref }} · {{ SOURCE[app.source] }} · {{ relTime(app.created_at) }}</span>
+          <span class="eyebrow">{{ app.ref }} · {{ SOURCE[app.source] }} · {{ relTime(app.created_at) }}<template v-if="app.archived_at"> · Archived</template></span>
           <h2 id="ap-name">{{ app.full_name }}</h2>
         </div>
         <button class="btn icon" aria-label="Close" @click="emit('close')">✕</button>
@@ -198,6 +236,10 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey));
         <textarea id="ap-note" v-model="note" class="inp" rows="3" placeholder="Only the team can see this" @blur="saveNote"></textarea>
         <span class="hint">Saves when you leave the box.</span>
       </div>
+      <div class="manage">
+        <button class="btn" type="button" @click="toggleArchive">{{ app.archived_at ? 'Restore' : 'Archive' }}</button>
+        <button class="btn danger" type="button" :disabled="deleting" @click="remove">{{ deleting ? 'Deleting…' : 'Delete' }}</button>
+      </div>
       <button class="btn primary" @click="emit('close')">Done</button>
     </div>
   </div>
@@ -205,6 +247,8 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey));
 
 <style scoped>
 .export { display: flex; flex-direction: column; gap: 8px; }
+.manage { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; border-top: 1px solid var(--line); padding-top: 14px; }
+.danger { color: var(--err); border-color: color-mix(in srgb, var(--err) 40%, var(--line)); }
 .progress { display: flex; flex-direction: column; gap: 6px; }
 .bar { height: 6px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
 .bar i { display: block; height: 100%; border-radius: 999px; background: var(--brand); transition: width .25s ease-out; }

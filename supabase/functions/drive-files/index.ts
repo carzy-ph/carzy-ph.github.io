@@ -2,20 +2,16 @@
 // Only admins and the application's own agent may fetch; the agent's Google token stays on the server.
 import { admin, cors, serve } from '../_shared/http.ts';
 import { UserError, accessToken } from '../_shared/google.ts';
+import { canManage, member } from '../_shared/auth.ts';
 
 serve(async req => {
   const db = admin();
-  const jwt = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
-  const { data: auth } = await db.auth.getUser(jwt);
-  const email = auth?.user?.email?.toLowerCase();
-  if (!email) throw new UserError('Sign in to the portal again, then try once more.');
-  const { data: me } = await db.from('team').select('role, agent_id').eq('email', email).maybeSingle();
-  if (!me) throw new UserError('You don’t have access to this application.');
+  const me = await member(req, db);
 
   const body = await req.json().catch(() => ({}));
   const { data: app } = await db.from('applications').select('id, agent_id, documents')
     .eq('id', String(body.application_id ?? '')).maybeSingle();
-  if (!app || (me.role !== 'admin' && me.agent_id !== app.agent_id)) throw new UserError('You don’t have access to this application.');
+  if (!app || !canManage(me, app.agent_id)) throw new UserError('You don’t have access to this application.');
 
   const doc = (app.documents ?? [])[Number(body.index)];
   if (!doc) throw new UserError('That file isn’t on this application.');
