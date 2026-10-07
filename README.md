@@ -222,9 +222,10 @@ Open an application and use **Export PDF**. The file (`APPLICATION LASTNAME, FIR
    copied, so they get a note page with the Drive link.
 
 **Brand forms:** each brand's form is a blank PDF in `public/forms/` plus the position of each
-answer (`FORMS` in `src/lib/applicationPdf.ts`). Mitsubishi is set up and matched by brand name.
-Brands without their own form get a standard form in the same layout. To add a brand, start from a
-filled-in sample of its form: blank out the sample answers and measure where each one goes.
+answer (`FORMS` in `src/lib/applicationPdf.ts`), matched by brand name. Set up so far:
+**Mitsubishi** (Gateway, Letter) and **Geely** (Geely Calamba / Autohub, Legal). Brands without their
+own form get a standard form in the same layout. To add a brand, start from its form (a PDF, or an
+Excel sheet exported to PDF), blank out any sample answers, and measure where each answer goes.
 
 ## Day to day
 - **An agent leaves:** turn off **Card is live**. Their card then shows the dealership contact.
