@@ -81,12 +81,12 @@ class Sheet {
   }
   /** Text in a form's box [x0, top, x1, bottom], vertically centered; centered across unless align is 'left'. */
   cell(value: unknown, [x0, top, x1, bottom]: Box, o: { size?: number; font?: PDFFont; align?: 'left' | 'center'; pad?: number } = {}) {
-    const size = o.size ?? 9.5, pad = o.pad ?? 4;
+    const size = o.size ?? 8.5, pad = o.pad ?? 4;
     return this.at(value, x0 + pad, x1 - pad, (top + bottom) / 2 + size * 0.35, { size, font: o.font, align: o.align ?? 'center' });
   }
   /** An X in a form's [ ] checkbox, given its center. */
   check([x, y]: readonly [number, number]) {
-    const z = 9, w = this.b.widthOfTextAtSize('X', z);
+    const z = 8, w = this.b.widthOfTextAtSize('X', z);
     this.page.drawText('X', { x: x - w / 2, y: this.page.getHeight() - y - z * 0.36, size: z, font: this.b });
   }
   /** Filled rectangle from the page's top-left. */
@@ -273,31 +273,32 @@ function fillMitsubishi(s: Sheet, a: Application, agent: Agent) {
   s.at(up(a.bank_branch), 297.6, 433, 444.7);
 }
 
-// Geely (Geely Calamba / Autohub) credit application, Legal size. Boxes are the form's cells as
-// [x0, top, x1, bottom] in points from the page's top-left, measured from the dealer's Excel form.
+// Geely (Geely Calamba / Autohub) credit application, Legal size with half-inch margins. Boxes are the
+// form's cells as [x0, top, x1, bottom] in points from the page's top-left, measured from the dealer's
+// Excel form (the signature block sits lower than in the sheet, to leave room to sign).
 const GEELY = {
-  last: [96.2, 193.0, 198.0, 214.5], first: [198.0, 193.0, 352.4, 214.5], middle: [352.4, 193.0, 505.3, 214.5], birth: [505.3, 193.0, 609.1, 214.5],
-  address1: [96.2, 214.5, 382.7, 231.4], address2: [2.3, 231.4, 382.7, 248.4], contact: [449.3, 214.5, 609.1, 231.4], email: [449.3, 231.4, 609.1, 248.4],
-  years: [157.1, 248.4, 299.8, 265.4], otherResidence: [352.4, 248.4, 449.3, 265.4], civil: [157.1, 265.4, 299.8, 282.3],
-  sourceNote: [157.1, 282.3, 259.7, 299.3], birthPlace: [491.9, 282.3, 609.1, 299.3],
-  employer: [198.0, 299.3, 609.1, 320.8], employerAddress: [96.2, 342.3, 609.1, 363.8], employerPhone: [54.9, 363.8, 299.8, 380.8], hrEmail: [449.3, 363.8, 609.1, 380.8],
-  position: [2.3, 394.0, 198.0, 411.0], tenure: [198.0, 394.0, 382.7, 411.0],
+  last: [119.5, 118.2, 210.0, 137.3], first: [210.0, 118.2, 347.2, 137.3], middle: [347.2, 118.2, 483.1, 137.3], birth: [483.1, 118.2, 575.3, 137.3],
+  address1: [119.5, 137.3, 374.1, 152.3], address2: [36.0, 152.3, 374.1, 167.5], contact: [433.3, 137.3, 575.3, 152.3], email: [433.3, 152.3, 575.3, 167.5],
+  years: [173.6, 167.5, 300.4, 182.6], otherResidence: [347.2, 167.5, 433.3, 182.6], civil: [173.6, 182.6, 300.4, 197.6],
+  sourceNote: [173.6, 197.6, 264.8, 212.7], birthPlace: [471.2, 197.6, 575.3, 212.7],
+  employer: [210.0, 212.7, 575.3, 231.8], employerAddress: [119.5, 250.9, 575.3, 270.0], employerPhone: [82.8, 270.0, 300.4, 285.1], hrEmail: [433.3, 270.0, 575.3, 285.1],
+  position: [36.0, 296.9, 210.0, 312.0], tenure: [210.0, 296.9, 374.1, 312.0],
   cb: {
-    last: [96.2, 448.7, 198.0, 470.2], first: [198.0, 448.7, 352.4, 470.2], middle: [352.4, 448.7, 505.3, 470.2], birth: [505.3, 448.7, 609.1, 470.2],
-    address: [96.2, 470.2, 609.1, 487.1], civil: [96.2, 487.1, 198.0, 506.0], contact: [259.7, 487.1, 382.7, 506.0], email: [449.3, 487.1, 609.1, 506.0],
-    years: [157.1, 506.0, 259.7, 523.0], relationship: [157.1, 523.0, 299.8, 539.9], sourceNote: [305.0, 539.9, 352.4, 556.9],
-    employer: [157.1, 556.9, 609.1, 573.9], employerAddress: [96.2, 573.9, 609.1, 590.8], employerPhone: [54.9, 590.8, 299.8, 607.8], hrEmail: [449.3, 590.8, 609.1, 607.8],
-    position: [2.3, 621.4, 198.0, 642.9], tenure: [198.0, 621.4, 382.7, 642.9]
+    last: [119.5, 345.5, 210.0, 364.6], first: [210.0, 345.5, 347.2, 364.6], middle: [347.2, 345.5, 483.1, 364.6], birth: [483.1, 345.5, 575.3, 364.6],
+    address: [119.5, 364.6, 575.3, 379.6], civil: [119.5, 379.6, 210.0, 396.4], contact: [264.8, 379.6, 374.1, 396.4], email: [433.3, 379.6, 575.3, 396.4],
+    years: [173.6, 396.4, 264.8, 411.5], relationship: [173.6, 411.5, 300.4, 426.5], sourceNote: [305.1, 426.5, 347.2, 441.7],
+    employer: [173.6, 441.7, 575.3, 456.8], employerAddress: [119.5, 456.8, 575.3, 471.8], employerPhone: [82.8, 471.8, 300.4, 486.9], hrEmail: [433.3, 471.8, 575.3, 486.9],
+    position: [36.0, 499.0, 210.0, 518.1], tenure: [210.0, 499.0, 374.1, 518.1]
   },
-  income: [198.0, 656.1, 299.8, 677.6], cbIncome: [198.0, 677.6, 299.8, 699.1], other: [382.7, 656.1, 449.3, 677.6], cbOther: [382.7, 677.6, 449.3, 699.1], total: [505.3, 656.1, 609.1, 699.1],
-  bank: [299.8, 712.3, 382.7, 731.1], branch: [505.3, 712.3, 609.1, 731.1], cbBank: [299.8, 731.1, 382.7, 750.0], cbBranch: [505.3, 731.1, 609.1, 750.0],
-  yearModel: [2.3, 780.2, 96.2, 806.6], unit: [96.2, 780.2, 259.7, 806.6], price: [259.7, 780.2, 382.7, 806.6], dp: [382.7, 780.2, 449.3, 806.6], af: [449.3, 780.2, 533.3, 806.6], terms: [533.3, 780.2, 609.1, 806.6],
-  grm: [96.2, 806.6, 198.0, 828.1], salesExecutive: [449.3, 806.6, 533.3, 828.1],
-  signApplicant: [54.9, 879.7, 259.7, 893.3], signCoBorrower: [352.4, 879.7, 533.3, 893.3]
+  income: [210.0, 529.8, 300.4, 548.9], cbIncome: [210.0, 548.9, 300.4, 568.0], other: [374.1, 529.8, 433.3, 548.9], cbOther: [374.1, 548.9, 433.3, 568.0], total: [483.1, 529.8, 575.3, 568.0],
+  bank: [300.4, 579.8, 374.1, 596.5], branch: [483.1, 579.8, 575.3, 596.5], cbBank: [300.4, 596.5, 374.1, 613.3], cbBranch: [483.1, 596.5, 575.3, 613.3],
+  yearModel: [36.0, 640.1, 119.5, 663.6], unit: [119.5, 640.1, 264.8, 663.6], price: [264.8, 640.1, 374.1, 663.6], dp: [374.1, 640.1, 433.3, 663.6], af: [433.3, 640.1, 508.0, 663.6], terms: [508.0, 640.1, 575.3, 663.6],
+  grm: [119.8, 663.6, 299.9, 682.7], salesExecutive: [433.6, 663.6, 573.7, 682.7],
+  signApplicant: [83.1, 775.2, 265.2, 786.6], signCoBorrower: [347.5, 775.2, 508.3, 786.6]
 } as const;
 const GEELY_CHECK = {
-  owned: [313.2, 257.3], living: [481.2, 256.8], employment: [267.0, 293.2], business: [358.8, 291.1],
-  cbOwned: [266.1, 514.7], cbRented: [358.8, 514.7], cbLiving: [481.2, 514.7], cbEmployment: [251.8, 548.5], cbBusiness: [446.2, 548.5]
+  owned: [312.3, 175.4], living: [461.7, 174.9], employment: [271.3, 207.3], business: [352.9, 205.4],
+  cbOwned: [270.5, 404.1], cbRented: [352.9, 404.1], cbLiving: [461.7, 404.1], cbEmployment: [257.8, 434.2], cbBusiness: [430.6, 434.2]
 } as const;
 
 /** Down payment and amount financed as percentages of the unit price ("20%"), when they can be worked out. */
@@ -320,8 +321,8 @@ function fillGeely(s: Sheet, a: Application, agent: Agent) {
 
   // Principal borrower
   s.cell(up(a.last_name), G.last); s.cell(up(a.first_name), G.first); s.cell(up(a.middle_name), G.middle);
-  s.cell(longDate(a.birth_date), G.birth, { size: 9 });
-  const lines = s.wrap(up(a.address), G.address1[2] - G.address1[0] - 8, 9.5, s.b);
+  s.cell(longDate(a.birth_date), G.birth, { size: 8 });
+  const lines = s.wrap(up(a.address), G.address1[2] - G.address1[0] - 8, 8.5, s.b);
   s.cell(lines[0], G.address1, left);
   s.cell(lines.slice(1).join(' '), G.address2, left);
   s.cell(a.mobile, G.contact, left);
@@ -329,7 +330,7 @@ function fillGeely(s: Sheet, a: Application, agent: Agent) {
   s.cell(yearsText(a.years_at_address), G.years);
   if (a.residence_type === 'owned') s.check(C.owned);
   else if (a.residence_type === 'with_relatives') s.check(C.living);
-  else if (a.residence_type) s.cell(up(RESIDENCE[a.residence_type]), G.otherResidence, { size: 8.5 });
+  else if (a.residence_type) s.cell(up(RESIDENCE[a.residence_type]), G.otherResidence, { size: 7.5 });
   s.cell(up(CIVIL_STATUS[a.civil_status]), G.civil);
   s.check(a.employment_type === 'business' ? C.business : C.employment);
   if (a.employment_type === 'ofw') s.cell('OFW', G.sourceNote);
@@ -344,7 +345,7 @@ function fillGeely(s: Sheet, a: Application, agent: Agent) {
   if (cb) {
     const B = G.cb;
     s.cell(up(cb.last_name), B.last); s.cell(up(cb.first_name), B.first); s.cell(up(cb.middle_name), B.middle);
-    if (cb.birth_date) s.cell(longDate(cb.birth_date), B.birth, { size: 9 });
+    if (cb.birth_date) s.cell(longDate(cb.birth_date), B.birth, { size: 8 });
     s.cell(up(cb.address), B.address, left);
     if (cb.civil_status) s.cell(up(CIVIL_STATUS[cb.civil_status]), B.civil);
     s.cell(cb.mobile, B.contact, left);
@@ -361,9 +362,9 @@ function fillGeely(s: Sheet, a: Application, agent: Agent) {
     s.cell(cb.employer_phone, isEmail(cb.employer_phone) ? B.hrEmail : B.employerPhone, isEmail(cb.employer_phone) ? plain : left);
     s.cell(up(cb.position), B.position);
     s.cell(yearsText(cb.years_employed), B.tenure);
-    s.cell(up(cb.bank), G.cbBank, { size: 8 });
+    s.cell(up(cb.bank), G.cbBank, { size: 7 });
     s.cell(up(cb.bank_branch), G.cbBranch);
-    s.cell(up([cb.first_name, cb.middle_name, cb.last_name].filter(Boolean).join(' ')), G.signCoBorrower, { size: 8.5 });
+    s.cell(up([cb.first_name, cb.middle_name, cb.last_name].filter(Boolean).join(' ')), G.signCoBorrower, { size: 7.5 });
   }
 
   // Income: co-borrower rows add up every co-maker
@@ -371,27 +372,27 @@ function fillGeely(s: Sheet, a: Application, agent: Agent) {
   const sum = (ns: (number | null | undefined)[]) => ns.reduce<number>((t, n) => t + (n ?? 0), 0);
   s.cell(money(a.monthly_income), G.income);
   if (cms.length) s.cell(money(sum(cms.map(c => c.monthly_income))), G.cbIncome);
-  if (a.other_income) s.cell(money(a.other_income), G.other, { size: 9 });
+  if (a.other_income) s.cell(money(a.other_income), G.other, { size: 8 });
   const cbOther = sum(cms.map(c => c.other_income));
-  if (cbOther) s.cell(money(cbOther), G.cbOther, { size: 9 });
-  s.cell(money(incomeOf(a).total), G.total, { size: 11 });
+  if (cbOther) s.cell(money(cbOther), G.cbOther, { size: 8 });
+  s.cell(money(incomeOf(a).total), G.total, { size: 10 });
 
   // Bank reference
-  s.cell(up(a.bank), G.bank, { size: 8 });
+  s.cell(up(a.bank), G.bank, { size: 7 });
   s.cell(up(a.bank_branch), G.branch);
 
   // Vehicle / unit
   const year = /\b(19|20)\d{2}\b/.exec(a.unit)?.[0] ?? '';
-  s.cell(year, G.yearModel, { size: 11 });
-  s.cell(up(year ? a.unit.replace(year, '').replace(/\s+/g, ' ').trim() : a.unit), G.unit, { size: 9 });
-  s.cell(money(amount(d.unit_price)), G.price, { size: 10 });
+  s.cell(year, G.yearModel, { size: 10 });
+  s.cell(up(year ? a.unit.replace(year, '').replace(/\s+/g, ' ').trim() : a.unit), G.unit, { size: 8 });
+  s.cell(money(amount(d.unit_price)), G.price, { size: 9 });
   const pct = dealPercents(d);
-  s.cell(pct.dp, G.dp, { size: 10 });
-  s.cell(pct.af, G.af, { size: 10 });
-  s.cell(d.terms, G.terms, { size: 10 });
-  s.cell(up(d.grm), G.grm, { size: 10 });
-  s.cell(up(agent.name), G.salesExecutive, { size: 9 });
-  s.cell(up(a.full_name), G.signApplicant, { size: 8.5 });
+  s.cell(pct.dp, G.dp, { size: 9 });
+  s.cell(pct.af, G.af, { size: 9 });
+  s.cell(d.terms, G.terms, { size: 9 });
+  s.cell(up(d.grm), G.grm, { size: 9 });
+  s.cell(up(agent.name), G.salesExecutive, { size: 8 });
+  s.cell(up(a.full_name), G.signApplicant, { size: 7.5 });
 }
 
 const FORMS: { match: RegExp; form: FormTemplate }[] = [
